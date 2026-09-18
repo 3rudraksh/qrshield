@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>QRShield</title>
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+
+<body>
+
+<div class="container">
+
+    <header>
+        <h1>QRShield</h1>
+
+        <p>
+            Explainable Security Analysis for QR-Based Links
+        </p>
+    </header>
+
+
+    <section class="card">
+
+        <h2>Analyze a URL</h2>
+
+        <form method="POST">
+
+            <input
+                type="text"
+                name="url"
+                placeholder="https://example.com"
+            >
+
+            <button type="submit">
+                Analyze URL
+            </button>
+
+        </form>
+
+    </section>
+
+
+    <section class="card">
+
+        <h2>Analyze a QR Code</h2>
+
+        <form
+            method="POST"
+            enctype="multipart/form-data"
+        >
+
+            <input
+                type="file"
+                name="qr_image"
+                accept="image/*"
+                required
+            >
+
+            <button type="submit">
+                Scan QR Image
+            </button>
+
+        </form>
+
+    </section>
+
+
+    {% if error %}
+
+    <section class="card error">
+
+        <h3>{{ error }}</h3>
+
+    </section>
+
+    {% endif %}
+
+
+    {% if result %}
+
+    <section class="result">
+
+        <h2>Security Analysis</h2>
+
+        <div class="risk-box">
+
+            <h1>{{ result.risk }}</h1>
+
+            <p>
+                Risk Score:
+                <strong>{{ result.score }}/100</strong>
+            </p>
+
+        </div>
+
+
+        <div class="url-box">
+
+            <strong>Destination:</strong>
+
+            <p>
+                {{ result.url }}
+            </p>
+
+        </div>
+
+
+        <h3>Why?</h3>
+
+        <ul>
+
+            {% for finding in result.findings %}
+
+            <li>
+                {{ finding }}
+            </li>
+
+            {% endfor %}
+
+        </ul>
+
+
+        {% if result.score > 50 %}
+
+        <div class="warning">
+
+            <strong>Recommendation:</strong>
+
+            Do not enter passwords, payment information,
+            or other sensitive data on this destination.
+
+        </div>
+
+        {% elif result.score > 20 %}
+
+        <div class="warning">
+
+            <strong>Recommendation:</strong>
+
+            Proceed carefully and verify the destination
+            through an independent trusted source.
+
+        </div>
+
+        {% else %}
+
+        <div class="safe">
+
+            <strong>Recommendation:</strong>
+
+            No obvious indicators were detected by the
+            current heuristic rules.
+
+        </div>
+
+        {% endif %}
+
+    </section>
+
+    {% endif %}
+
+
+    <footer>
+
+        QRShield — Cybersecurity Hackathon Prototype
+
+    </footer>
+
+</div>
+
+</body>
+
+</html>

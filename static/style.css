@@ -1,0 +1,112 @@
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    font-family: Arial, sans-serif;
+    background: #f4f6f8;
+    color: #17202a;
+}
+
+.container {
+    width: 90%;
+    max-width: 900px;
+    margin: 40px auto;
+}
+
+header {
+    text-align: center;
+    margin-bottom: 30px;
+}
+
+header h1 {
+    font-size: 48px;
+    margin-bottom: 5px;
+}
+
+header p {
+    color: #566573;
+    font-size: 18px;
+}
+
+.card,
+.result {
+    background: white;
+    padding: 25px;
+    margin-bottom: 20px;
+    border-radius: 12px;
+    box-shadow: 0 3px 12px rgba(0, 0, 0, 0.08);
+}
+
+input[type="text"] {
+    width: 70%;
+    padding: 13px;
+    border: 1px solid #ccd1d1;
+    border-radius: 6px;
+}
+
+input[type="file"] {
+    margin: 10px 0;
+}
+
+button {
+    padding: 13px 20px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    background: #1f4e79;
+    color: white;
+    font-weight: bold;
+}
+
+button:hover {
+    opacity: 0.9;
+}
+
+.risk-box {
+    padding: 20px;
+    border-radius: 10px;
+    background: #eef2f5;
+    text-align: center;
+}
+
+.risk-box h1 {
+    margin: 0;
+}
+
+.url-box {
+    margin-top: 20px;
+    padding: 15px;
+    background: #f7f9f9;
+    border-radius: 8px;
+    word-break: break-all;
+}
+
+li {
+    margin: 12px 0;
+}
+
+.warning {
+    padding: 15px;
+    background: #fff3cd;
+    border-radius: 8px;
+    margin-top: 20px;
+}
+
+.safe {
+    padding: 15px;
+    background: #d5f5e3;
+    border-radius: 8px;
+    margin-top: 20px;
+}
+
+.error {
+    background: #f9e1e1;
+}
+
+footer {
+    text-align: center;
+    margin-top: 40px;
+    color: #7b7d7d;
+}
