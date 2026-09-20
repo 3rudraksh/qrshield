@@ -1,3 +1,4 @@
+from pyexpat import features
 from urllib.parse import urlparse, parse_qs, unquote
 import ipaddress
 import math
@@ -61,6 +62,28 @@ def calculate_entropy(value):
 
     return entropy
 
+def decode_url_layers(url, max_layers=3):
+    """
+    Repeatedly percent-decode a URL and record each representation.
+
+    Returns:
+        list[str]: URL representations from original through
+                   successive decoding layers.
+    """
+
+    layers = [url]
+    current = url
+
+    for _ in range(max_layers):
+        decoded = unquote(current)
+
+        if decoded == current:
+            break
+
+        layers.append(decoded)
+        current = decoded
+
+    return layers
 
 def is_ip_address(hostname):
     """
@@ -99,13 +122,62 @@ def analyze_url(url):
         }
 
     # --------------------------------------------------
-    # Normalize URL
+    # NORMALIZE URL
     # --------------------------------------------------
 
     if not re.match(r"^https?://", original_url, re.IGNORECASE):
         normalized_url = "http://" + original_url
     else:
         normalized_url = original_url
+
+    # --------------------------------------------------
+    # STAGE 2.1
+    # MULTI-LAYER URL DECODING
+    # --------------------------------------------------
+
+    decode_layers = decode_url_layers(normalized_url)
+
+    decoding_count = len(decode_layers) - 1
+
+    features.append({
+        "name": "Decoding Layers",
+        "value": decoding_count
+    })
+
+    features.append({
+        "name": "Decoded URL",
+        "value": decode_layers[-1]
+    })
+
+    if decoding_count >= 1:
+
+        score += 5
+
+        findings.append({
+            "severity": "medium",
+            "indicator": "URL encoding detected",
+            "detail": (
+                f"The URL changed after percent-decoding "
+                f"({decoding_count} decoding layer(s))."
+            )
+        })
+
+    if decoding_count >= 2:
+
+        score += 15
+
+        findings.append({
+            "severity": "high",
+            "indicator": "Multiple URL-decoding layers detected",
+            "detail": (
+                "The URL required multiple percent-decoding "
+                "operations to reach its final representation."
+            )
+        })
+
+    # --------------------------------------------------
+    # PARSE URL
+    # --------------------------------------------------
 
     parsed = urlparse(normalized_url)
 
@@ -117,7 +189,9 @@ def analyze_url(url):
             "url": normalized_url,
             "score": 100,
             "risk": "INVALID",
-            "findings": ["The URL could not be parsed correctly."],
+            "findings": [
+                "The URL could not be parsed correctly."
+            ],
             "features": []
         }
 
@@ -174,7 +248,10 @@ def analyze_url(url):
         findings.append({
             "severity": "high",
             "indicator": "IP address used as destination",
-            "detail": "The URL uses an IP address instead of a domain name."
+            "detail": (
+                "The URL uses an IP address instead of "
+                "a domain name."
+            )
         })
 
         features.append({
@@ -207,7 +284,9 @@ def analyze_url(url):
         findings.append({
             "severity": "low",
             "indicator": "Unusually long URL",
-            "detail": f"The URL contains {url_length} characters."
+            "detail": (
+                f"The URL contains {url_length} characters."
+            )
         })
 
     # --------------------------------------------------
@@ -228,7 +307,9 @@ def analyze_url(url):
         findings.append({
             "severity": "medium",
             "indicator": "Long hostname",
-            "detail": "The hostname is unusually long."
+            "detail": (
+                "The hostname is unusually long."
+            )
         })
 
     # --------------------------------------------------
@@ -237,7 +318,10 @@ def analyze_url(url):
 
     hostname_parts = hostname.split(".")
 
-    subdomain_count = max(0, len(hostname_parts) - 2)
+    subdomain_count = max(
+        0,
+        len(hostname_parts) - 2
+    )
 
     features.append({
         "name": "Subdomain Count",
@@ -251,7 +335,10 @@ def analyze_url(url):
         findings.append({
             "severity": "medium",
             "indicator": "Multiple subdomains",
-            "detail": f"The hostname contains approximately {subdomain_count} subdomain levels."
+            "detail": (
+                f"The hostname contains approximately "
+                f"{subdomain_count} subdomain levels."
+            )
         })
 
     # --------------------------------------------------
@@ -259,7 +346,8 @@ def analyze_url(url):
     # --------------------------------------------------
 
     path_parts = [
-        part for part in parsed.path.split("/")
+        part
+        for part in parsed.path.split("/")
         if part
     ]
 
@@ -277,7 +365,9 @@ def analyze_url(url):
         findings.append({
             "severity": "low",
             "indicator": "Deep URL path",
-            "detail": "The destination contains many path levels."
+            "detail": (
+                "The destination contains many path levels."
+            )
         })
 
     # --------------------------------------------------
@@ -300,7 +390,10 @@ def analyze_url(url):
         findings.append({
             "severity": "low",
             "indicator": "Many query parameters",
-            "detail": f"The URL contains {parameter_count} query parameters."
+            "detail": (
+                f"The URL contains {parameter_count} "
+                f"query parameters."
+            )
         })
 
     # --------------------------------------------------
@@ -332,7 +425,10 @@ def analyze_url(url):
         findings.append({
             "severity": "high",
             "indicator": "@ symbol detected",
-            "detail": "An @ symbol can make the actual destination difficult to recognize."
+            "detail": (
+                "An @ symbol can make the actual "
+                "destination difficult to recognize."
+            )
         })
 
     # --------------------------------------------------
@@ -358,16 +454,17 @@ def analyze_url(url):
         findings.append({
             "severity": "medium",
             "indicator": "Heavy URL encoding",
-            "detail": f"The URL contains {encoded_count} percent-encoded sequences."
+            "detail": (
+                f"The URL contains {encoded_count} "
+                f"percent-encoded sequences."
+            )
         })
 
     # --------------------------------------------------
-    # DECODED URL DIFFERENCE
+    # ENCODED CONTENT
     # --------------------------------------------------
 
-    decoded_url = unquote(normalized_url)
-
-    if decoded_url != normalized_url:
+    if decoding_count > 0:
 
         features.append({
             "name": "Encoded Content",
@@ -411,9 +508,11 @@ def analyze_url(url):
 
     features.append({
         "name": "Suspicious Keywords",
-        "value": ", ".join(found_keywords)
-        if found_keywords
-        else "None"
+        "value": (
+            ", ".join(found_keywords)
+            if found_keywords
+            else "None"
+        )
     })
 
     # --------------------------------------------------
@@ -434,7 +533,10 @@ def analyze_url(url):
         findings.append({
             "severity": "low",
             "indicator": "Hyphen-heavy hostname",
-            "detail": f"The hostname contains {hyphen_count} hyphens."
+            "detail": (
+                f"The hostname contains "
+                f"{hyphen_count} hyphens."
+            )
         })
 
     # --------------------------------------------------
@@ -458,7 +560,10 @@ def analyze_url(url):
         findings.append({
             "severity": "low",
             "indicator": "High digit count in hostname",
-            "detail": f"The hostname contains {digit_count} digits."
+            "detail": (
+                f"The hostname contains "
+                f"{digit_count} digits."
+            )
         })
 
     # --------------------------------------------------
@@ -481,12 +586,18 @@ def analyze_url(url):
         findings.append({
             "severity": "medium",
             "indicator": "Suspicious-looking TLD",
-            "detail": f"The hostname ends with {matched_tld}."
+            "detail": (
+                f"The hostname ends with {matched_tld}."
+            )
         })
 
     features.append({
         "name": "TLD Indicator",
-        "value": matched_tld if matched_tld else "No match"
+        "value": (
+            matched_tld
+            if matched_tld
+            else "No match"
+        )
     })
 
     # --------------------------------------------------
@@ -549,6 +660,10 @@ def analyze_url(url):
                 "identify suspicious characteristics."
             )
         })
+
+    # --------------------------------------------------
+    # FINAL RESULT
+    # --------------------------------------------------
 
     return {
         "url": normalized_url,
