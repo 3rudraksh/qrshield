@@ -234,72 +234,6 @@ def analyze_port(parsed):
         )
     }
 
-def analyze_path_query_deception(parsed):
-    """
-    Analyze URL path and query components for deception indicators.
-
-    This detects suspicious security-related language and
-    redirect-style query parameters.
-
-    Detection alone does not imply maliciousness.
-    """
-
-    path = parsed.path or ""
-    query = parsed.query or ""
-
-    security_keywords = [
-        "login",
-        "signin",
-        "verify",
-        "verification",
-        "account",
-        "secure",
-        "update",
-        "password",
-        "credential",
-        "payment",
-        "wallet",
-        "bank"
-    ]
-
-    path_lower = path.lower()
-
-    suspicious_path_keywords = [
-        keyword
-        for keyword in security_keywords
-        if keyword in path_lower
-    ]
-
-    redirect_keywords = [
-        "redirect",
-        "url",
-        "target",
-        "next",
-        "return",
-        "returnurl",
-        "continue",
-        "dest",
-        "destination"
-    ]
-
-    query_lower = query.lower()
-
-    redirect_parameters = [
-        keyword
-        for keyword in redirect_keywords
-        if f"{keyword}=" in query_lower
-    ]
-
-    return {
-        "path": path,
-        "query": query,
-        "suspicious_path_keywords": suspicious_path_keywords,
-        "redirect_parameters": redirect_parameters,
-        "suspicious": bool(
-            suspicious_path_keywords or redirect_parameters
-        )
-    }
-
 def analyze_url(url):
     """
     Analyze a URL using explainable heuristic indicators.
@@ -470,64 +404,11 @@ def analyze_url(url):
             "features": []
         }
 
-        # Path and query deception analysis
-    path_query_analysis = analyze_path_query_deception(parsed)
-
-    if path_query_analysis["suspicious_path_keywords"]:
-        score += 5
-
-        features.append({
-            "name": "Suspicious Path Keywords",
-            "value": path_query_analysis["suspicious_path_keywords"]
-        })
-
-        findings.append({
-            "severity": "low",
-            "message": (
-                "URL path contains security-sensitive keywords: "
-                + ", ".join(
-                    path_query_analysis["suspicious_path_keywords"]
-                )
-            )
-        })
-
-    if path_query_analysis["redirect_parameters"]:
-        score += 10
-
-        features.append({
-            "name": "Redirect Parameters",
-            "value": path_query_analysis["redirect_parameters"]
-        })
-
-        findings.append({
-            "severity": "medium",
-            "message": (
-                "URL query contains redirect-style parameters: "
-                + ", ".join(
-                    path_query_analysis["redirect_parameters"]
-                )
-            )
-        })
-
     hostname = hostname.lower()
 
     # --------------------------------------------------
     # BASIC URL INFORMATION
     # --------------------------------------------------
-
-    # if port_analysis["explicit"] and port_analysis["valid"]:
-    #     port_value = port_analysis["port"]
-    # elif not port_analysis["valid"]:
-    #     port_value = "Invalid"  
-    # else:
-    #     port_value = "Default"
-
-    # features.append({
-    # "name": "Port",
-    # "value": port_value
-    # })
-
-
 
     features.append({
         "name": "Scheme",
