@@ -158,35 +158,6 @@ def analyze_hostname_structure(hostname):
         "reasons": reasons
     }
 
-def analyze_punycode(hostname):
-    """
-    Analyze a hostname for punycode/Internationalised domain names (IDN)
-
-    IDNs start with the prefix "xn--"
-    presence of punycode can indicate an attempt to obfuscate the true domain name
-    but is not inherently malicious.
-    This function checks for the presence of punycode and returns relevant information.
-    """
-
-    if not hostname:
-        return {
-            "detected" : False,
-            "labels" : [],
-            "punycodeLabels" : [],
-        }
-    
-    hostname = hostname.lower().strip(".")
-    labels = hostname.split(".")
-
-    punycode_labels = [label for label in labels
-    if label.startswith("xn--")]
-
-    return {
-        "detected" : bool(punycode_labels),
-        "labels" : labels,
-        "punycode_labels" : punycode_labels
-    }
-
 def analyze_url(url):
     """
     Analyze a URL using explainable heuristic indicators.
@@ -268,24 +239,6 @@ def analyze_url(url):
     parsed = urlparse(normalized_url)
 
     hostname = parsed.hostname
-
-    punycode_analysis = analyze_punycode(hostname)
-
-    if punycode_analysis["detected"]:
-        score += 10
-
-        features.append({
-        "name": "Punycode / IDN",
-        "value": punycode_analysis["punycode_labels"]
-    })
-
-    findings.append({
-        "severity": "medium",
-        "message": (
-            "Hostname contains Punycode / Internationalized "
-            "Domain Name (IDN) labels"
-        )
-    })
 
         # Hostname / subdomain structure analysis
     hostname_analysis = analyze_hostname_structure(hostname)
