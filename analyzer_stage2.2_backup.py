@@ -100,63 +100,6 @@ def is_ip_address(hostname):
     except ValueError:
         return False
 
-def analyze_hostname_structure(hostname):
-    """
-    Analyze hostname structure for suspicious subdomain patterns.
-    Returns structural information without making reputation claims.
-    """
-
-    if not hostname:
-        return {
-            "subdomain_count": 0,
-            "labels": [],
-            "suspicious_subdomain": False,
-            "reasons": []
-        }
-
-    hostname = hostname.lower().strip(".")
-    labels = hostname.split(".")
-
-    # Ignore the final domain components when looking at subdomains.
-    # This is a structural heuristic, not full Public Suffix List parsing.
-    subdomains = labels[:-2] if len(labels) >= 2 else []
-
-    suspicious_keywords = [
-        "login",
-        "verify",
-        "verification",
-        "secure",
-        "account",
-        "update",
-        "signin",
-        "support",
-        "bank",
-        "wallet",
-        "payment"
-    ]
-
-    suspicious_subdomains = [
-        label for label in subdomains
-        if any(keyword in label for keyword in suspicious_keywords)
-    ]
-
-    reasons = []
-
-    if len(subdomains) >= 3:
-        reasons.append("Multiple subdomain levels detected")
-
-    if suspicious_subdomains:
-        reasons.append(
-            "Security-sensitive keywords appear in subdomains"
-        )
-
-    return {
-        "subdomain_count": len(subdomains),
-        "labels": labels,
-        "suspicious_subdomain": bool(suspicious_subdomains),
-        "suspicious_subdomains": suspicious_subdomains,
-        "reasons": reasons
-    }
 
 def analyze_url(url):
     """
@@ -239,30 +182,6 @@ def analyze_url(url):
     parsed = urlparse(normalized_url)
 
     hostname = parsed.hostname
-
-        # Hostname / subdomain structure analysis
-    hostname_analysis = analyze_hostname_structure(hostname)
-
-    features.append({
-        "name": "Hostname Labels",
-        "value": hostname_analysis["labels"]
-    })
-
-    # features.append({
-    #     "name": "Subdomain Count",
-    #     "value": hostname_analysis["subdomain_count"]
-    # })
-
-    if hostname_analysis["suspicious_subdomain"]:
-        score += 10
-
-        findings.append({
-            "severity": "medium",
-            "message": (
-                "Security-sensitive keywords appear in the hostname's "
-                "subdomain structure"
-            )
-        })
 
     if not hostname:
 
