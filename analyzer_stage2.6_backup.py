@@ -300,62 +300,6 @@ def analyze_path_query_deception(parsed):
         )
     }
 
-def analyze_obfuscation_combination(
-    decoding_count=0,
-    userinfo_detected=False,
-    suspicious_subdomain=False,
-    punycode_detected=False,
-    non_default_port=False,
-    suspicious_path=False,
-    redirect_parameters=False
-):
-    """
-    Analyze combinations of URL obfuscation and deception indicators.
-
-    Multiple indicators occurring together may represent a stronger
-    structural deception signal than any single indicator alone.
-
-    This does not prove maliciousness.
-    """
-
-    indicators = []
-
-    if decoding_count > 0:
-        indicators.append("URL decoding")
-
-    if userinfo_detected:
-        indicators.append("userinfo / @")
-
-    if suspicious_subdomain:
-        indicators.append("suspicious subdomain")
-
-    if punycode_detected:
-        indicators.append("Punycode / IDN")
-
-    if non_default_port:
-        indicators.append("non-default port")
-
-    if suspicious_path:
-        indicators.append("suspicious path")
-
-    if redirect_parameters:
-        indicators.append("redirect parameter")
-
-    count = len(indicators)
-
-    if count >= 4:
-        level = "high"
-    elif count >= 2:
-        level = "medium"
-    else:
-        level = "low"
-
-    return {
-        "count": count,
-        "level": level,
-        "indicators": indicators
-    }
-
 def analyze_url(url):
     """
     Analyze a URL using explainable heuristic indicators.
@@ -1048,57 +992,7 @@ def analyze_url(url):
     # --------------------------------------------------
     # NORMALIZE SCORE
     # --------------------------------------------------
-    decoding_count = len(decode_layers) - 1
-    obfuscation_analysis = analyze_obfuscation_combination(
-        decoding_count=decoding_count,
-        userinfo_detected=(
-            "@" in normalized_url
-            and bool(parsed.username)
-        ),
-        suspicious_subdomain=hostname_analysis["suspicious_subdomain"],
-        punycode_detected=punycode_analysis["detected"],
-        non_default_port=(
-            port_analysis["explicit"]
-            and port_analysis["valid"]
-            and not port_analysis["default"]
-        ),
-        suspicious_path=bool(
-            path_query_analysis["suspicious_path_keywords"]
-        ),
-        redirect_parameters=bool(
-            path_query_analysis["redirect_parameters"]
-        )
-    )    
-    features.append({
-    "name": "Obfuscation Combination",
-    "value": {
-        "count": obfuscation_analysis["count"],
-        "indicators": obfuscation_analysis["indicators"],
-        "level": obfuscation_analysis["level"]
-        }
-    })
 
-    if obfuscation_analysis["count"] >= 4:
-        score += 10
-
-        findings.append({
-            "severity": "high",
-            "message": (
-                "Multiple URL obfuscation and deception techniques "
-                "occur together"
-            )
-        })
-
-    elif obfuscation_analysis["count"] >= 2:
-        score += 5
-
-        findings.append({
-            "severity": "medium",
-            "message": (
-                "Multiple URL obfuscation and deception indicators "
-                "occur together"
-            )
-        })    
     score = min(score, 100)
 
     # --------------------------------------------------
@@ -1131,8 +1025,6 @@ def analyze_url(url):
                 "identify suspicious characteristics."
             )
         })
-
-            # Obfuscation combination analysis
 
     # --------------------------------------------------
     # FINAL RESULT
