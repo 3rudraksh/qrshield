@@ -187,53 +187,6 @@ def analyze_punycode(hostname):
         "punycode_labels" : punycode_labels
     }
 
-def analyze_port(parsed):
-    """
-    Analyze the explicit port used by a URL.
-
-    Returns structural information about whether a port was
-    explicitly specified and whether it is commonly associated
-    with the URL scheme.
-    """
-
-    try:
-        port = parsed.port
-    except ValueError:
-        return {
-            "explicit": True,
-            "port": None,
-            "valid": False,
-            "reason": "Invalid port specification"
-        }
-
-    if port is None:
-        return {
-            "explicit": False,
-            "port": None,
-            "valid": True,
-            "reason": "No explicit port"
-        }
-
-    default_ports = {
-        "http": 80,
-        "https": 443
-    }
-
-    expected_port = default_ports.get(parsed.scheme.lower())
-
-    return {
-        "explicit": True,
-        "port": port,
-        "valid": True,
-        "default": port == expected_port,
-        "expected_port": expected_port,
-        "reason": (
-            "Default port"
-            if port == expected_port
-            else "Non-default port"
-        )
-    }
-
 def analyze_url(url):
     """
     Analyze a URL using explainable heuristic indicators.
@@ -316,40 +269,6 @@ def analyze_url(url):
 
     hostname = parsed.hostname
 
-    # Port analysis
-    port_analysis = analyze_port(parsed)
-
-    if not port_analysis["valid"]:
-        score += 15
-
-        features.append({
-            "name": "Port",
-            "value": "Invalid"
-        })
-
-        findings.append({
-            "severity": "medium",
-            "message": "URL contains an invalid port specification"
-        })
-
-    elif port_analysis["explicit"]:
-
-        features.append({
-            "name": "Explicit Port",
-            "value": port_analysis["port"]
-        })
-
-        if not port_analysis["default"]:
-            score += 5
-
-            findings.append({
-                "severity": "low",
-                "message": (
-                    f"URL uses non-default port "
-                    f"{port_analysis['port']} for {parsed.scheme.upper()}"
-                )
-            })
-
     punycode_analysis = analyze_punycode(hostname)
 
     if punycode_analysis["detected"]:
@@ -360,13 +279,13 @@ def analyze_url(url):
         "value": punycode_analysis["punycode_labels"]
     })
 
-        findings.append({
-            "severity": "medium",
-            "message": (
-                "Hostname contains Punycode / Internationalized "
-                "Domain Name (IDN) labels"
-            )
-        })
+    findings.append({
+        "severity": "medium",
+        "message": (
+            "Hostname contains Punycode / Internationalized "
+            "Domain Name (IDN) labels"
+        )
+    })
 
         # Hostname / subdomain structure analysis
     hostname_analysis = analyze_hostname_structure(hostname)
