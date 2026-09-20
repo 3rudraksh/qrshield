@@ -418,55 +418,18 @@ def analyze_url(url):
     # @ SYMBOL
     # --------------------------------------------------
 
-    # Userinfo / @ deception detection
     if "@" in normalized_url:
-        try:
-            parsed = urlparse(normalized_url)
 
-            username = parsed.username
-            hostname = parsed.hostname
+        score += 20
 
-            if username:
-                score += 20
-
-                features.append({
-                    "name": "URL Userinfo",
-                    "value": username
-                })
-
-                features.append({
-                    "name": "Actual Hostname",
-                    "value": hostname
-                })
-
-                findings.append({
-                    "severity": "high",
-                    "message": (
-                        f"URL contains userinfo before @. "
-                        f"Actual destination hostname is {hostname}"
-                    )
-                })
-
-            else:
-                score += 10
-
-                features.append({
-                    "name": "At Symbol",
-                    "value": True
-                })
-
-                findings.append({
-                    "severity": "medium",
-                    "message": "URL contains @ symbol"
-                })
-
-        except ValueError:
-            score += 20
-
-            findings.append({
-                "severity": "high",
-                "message": "Malformed URL contains @ symbol"
-            })
+        findings.append({
+            "severity": "high",
+            "indicator": "@ symbol detected",
+            "detail": (
+                "An @ symbol can make the actual "
+                "destination difficult to recognize."
+            )
+        })
 
     # --------------------------------------------------
     # PERCENT ENCODING
