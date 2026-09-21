@@ -514,6 +514,49 @@ def analyze_dns(hostname):
         "error": dns_result["error"]
     }
 
+def build_dns_features(dns_analysis):
+    """
+    Convert detailed DNS analysis into a compact feature set
+    for the main URL analysis engine.
+    """
+
+    return {
+        "status": dns_analysis["status"],
+        "address_count": dns_analysis["address_count"],
+        "ipv4_count": dns_analysis["ipv4_count"],
+        "ipv6_count": dns_analysis["ipv6_count"],
+        "has_ipv4": dns_analysis["ipv4_count"] > 0,
+        "has_ipv6": dns_analysis["ipv6_count"] > 0,
+        "resolution_failed": dns_analysis["status"] == "DNS_FAILURE"
+    }
+
+def evaluate_dns_risk(dns_features):
+    """
+    Evaluate DNS-related risk indicators.
+
+    Returns:
+        {
+            "score": int,
+            "findings": [...]
+        }
+    """
+
+    score = 0
+    findings = []
+
+    if dns_features["status"] == "DNS_FAILURE":
+        score += 10
+
+        findings.append({
+            "severity": "low",
+            "message": "Hostname could not be resolved through DNS"
+        })
+
+    return {
+        "score": score,
+        "findings": findings
+    }
+
 def analyze_url(url):
     """
     Analyze a URL using explainable heuristic indicators.
@@ -724,6 +767,16 @@ def analyze_url(url):
 
     hostname = hostname.lower()
 
+    # STAGE 3 / DNS INTELLIGENCE
+    dns_analysis = analyze_dns(hostname)
+    dns_features = build_dns_features(dns_analysis)
+
+    dns_risk = evaluate_dns_risk(dns_features)
+    score += dns_risk["score"]
+
+    for finding in dns_risk["findings"]:
+        findings.append(finding)
+
     # --------------------------------------------------
     # BASIC URL INFORMATION
     # --------------------------------------------------
@@ -750,6 +803,11 @@ def analyze_url(url):
     features.append({
         "name": "Hostname",
         "value": hostname
+    })
+
+    features.append({
+        "name": "DNS Intelligence",
+        "value": dns_features
     })
 
     # --------------------------------------------------
