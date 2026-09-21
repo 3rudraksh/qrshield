@@ -480,7 +480,7 @@ def analyze_url(url):
         features.append({
         "name": "Punycode / IDN",
         "value": punycode_analysis["punycode_labels"]
-        })
+    })
 
         findings.append({
             "severity": "medium",
@@ -530,6 +530,7 @@ def analyze_url(url):
     path_query_analysis = analyze_path_query_deception(parsed)
 
     if path_query_analysis["suspicious_path_keywords"]:
+        score += 5
 
         features.append({
             "name": "Suspicious Path Keywords",
@@ -570,17 +571,17 @@ def analyze_url(url):
     # BASIC URL INFORMATION
     # --------------------------------------------------
 
-    if port_analysis["explicit"] and port_analysis["valid"]:
-        port_value = port_analysis["port"]
-    elif not port_analysis["valid"]:
-        port_value = "Invalid"  
-    else:
-        port_value = "Default"
+    # if port_analysis["explicit"] and port_analysis["valid"]:
+    #     port_value = port_analysis["port"]
+    # elif not port_analysis["valid"]:
+    #     port_value = "Invalid"  
+    # else:
+    #     port_value = "Default"
 
-    features.append({
-    "name": "Port",
-    "value": port_value
-    })
+    # features.append({
+    # "name": "Port",
+    # "value": port_value
+    # })
 
 
 
@@ -592,6 +593,11 @@ def analyze_url(url):
     features.append({
         "name": "Hostname",
         "value": hostname
+    })
+
+    features.append({
+        "name": "Port",
+        "value": parsed.port if parsed.port else "Default"
     })
 
     # --------------------------------------------------
