@@ -7,6 +7,7 @@ import socket
 import ssl
 from cryptography import x509
 import datetime
+import urllib.request
 
 SUSPICIOUS_KEYWORDS = [
     "login",
@@ -39,6 +40,13 @@ SUSPICIOUS_TLDS = [
     ".cf",
 ]
 
+REDIRECT_STATUS_CODES = {
+    301,
+    302,
+    303,
+    307,
+    308
+}
 
 def calculate_entropy(value):
     """
@@ -1066,6 +1074,262 @@ def evaluate_tls_risk(tls_features):
     return {
         "score": score,
         "findings": findings
+    }
+
+class NoRedirectHandler(urllib.request.HTTPRedirectHandler):
+
+    def redirect_request(
+        self,
+        req,
+        fp,
+        code,
+        msg,
+        headers,
+        newurl
+    ):
+        return None
+
+def make_http_request(url, timeout=5):
+    """
+    Make an HTTP request to a URL without automatically
+    following redirects.
+
+    Returns:
+        {
+            "success": True/False,
+            "url": ...,
+            "status_code": ...,
+            "location": ...,
+            "headers": ...,
+            "error": ...
+        }
+    """
+
+    if not url:
+        return {
+            "success": False,
+            "url": url,
+            "status_code": None,
+            "location": None,
+            "headers": {},
+            "error": "No URL provided"
+        }
+
+    try:
+        request = urllib.request.Request(
+            url,
+            headers={
+                "User-Agent": "QRShield/1.0"
+            }
+        )
+
+        opener = urllib.request.build_opener(
+            NoRedirectHandler()
+        )
+
+        response = opener.open(
+            request,
+            timeout=timeout
+        )
+
+        return {
+            "success": True,
+            "url": response.geturl(),
+            "status_code": response.status,
+            "location": response.headers.get("Location"),
+            "headers": dict(response.headers),
+            "error": None
+        }
+
+    except urllib.error.HTTPError as error:
+        return {
+            "success": True,
+            "url": error.geturl(),
+            "status_code": error.code,
+            "location": error.headers.get("Location"),
+            "headers": dict(error.headers),
+            "error": None
+        }
+
+    except (urllib.error.URLError, socket.timeout, TimeoutError) as error:
+        return {
+            "success": False,
+            "url": url,
+            "status_code": None,
+            "location": None,
+            "headers": {},
+            "error": str(error)
+        }
+
+    except OSError as error:
+        return {
+            "success": False,
+            "url": url,
+            "status_code": None,
+            "location": None,
+            "headers": {},
+            "error": str(error)
+        }
+
+def analyze_redirect_response(response):
+    """
+    Analyze a single HTTP response for redirect behavior.
+
+    Returns:
+        {
+            "is_redirect": True/False,
+            "status_code": ...,
+            "location": ...,
+            "has_location": True/False
+        }
+    """
+
+    if not response:
+        return {
+            "is_redirect": False,
+            "status_code": None,
+            "location": None,
+            "has_location": False
+        }
+
+    status_code = response.get("status_code")
+    location = response.get("location")
+
+    is_redirect = (
+        status_code in REDIRECT_STATUS_CODES
+        and bool(location)
+    )
+
+    return {
+        "is_redirect": is_redirect,
+        "status_code": status_code,
+        "location": location,
+        "has_location": bool(location)
+    }
+
+def follow_redirect_chain(url, max_redirects=5, timeout=5):
+    """
+    Follow HTTP redirects manually.
+
+    Returns:
+        {
+            "original_url": ...,
+            "final_url": ...,
+            "redirect_count": ...,
+            "loop_detected": ...,
+            "max_redirects_reached": ...,
+            "completed": ...,
+            "hops": [...],
+            "error": ...
+        }
+    """
+
+    if not url:
+        return {
+            "original_url": url,
+            "final_url": None,
+            "redirect_count": 0,
+            "loop_detected": False,
+            "max_redirects_reached": False,
+            "completed": False,
+            "hops": [],
+            "error": "No URL provided"
+        }
+
+    current_url = url
+    visited_urls = set()
+    hops = []
+
+    for _ in range(max_redirects + 1):
+
+        # Loop protection
+        if current_url in visited_urls:
+            return {
+                "original_url": url,
+                "final_url": current_url,
+                "redirect_count": len(hops),
+                "loop_detected": True,
+                "max_redirects_reached": False,
+                "completed": False,
+                "hops": hops,
+                "error": "Redirect loop detected"
+            }
+
+        visited_urls.add(current_url)
+
+        # Make request without automatically following redirects
+        response = make_http_request(
+            current_url,
+            timeout=timeout
+        )
+
+        # Request failed
+        if not response.get("success"):
+            return {
+                "original_url": url,
+                "final_url": current_url,
+                "redirect_count": len(hops),
+                "loop_detected": False,
+                "max_redirects_reached": False,
+                "completed": False,
+                "hops": hops,
+                "error": response.get("error")
+            }
+
+        redirect = analyze_redirect_response(response)
+
+        # Record this HTTP hop
+        hops.append({
+            "url": current_url,
+            "status_code": redirect["status_code"],
+            "location": redirect["location"],
+            "is_redirect": redirect["is_redirect"]
+        })
+
+        # Not a redirect = final destination
+        if not redirect["is_redirect"]:
+            return {
+                "original_url": url,
+                "final_url": current_url,
+                "redirect_count": len(hops) - 1,
+                "loop_detected": False,
+                "max_redirects_reached": False,
+                "completed": True,
+                "hops": hops,
+                "error": None
+            }
+
+        # Resolve relative Location values
+        next_url = urllib.parse.urljoin(
+            current_url,
+            redirect["location"]
+        )
+
+        # Malformed/empty destination
+        if not next_url:
+            return {
+                "original_url": url,
+                "final_url": current_url,
+                "redirect_count": len(hops),
+                "loop_detected": False,
+                "max_redirects_reached": False,
+                "completed": False,
+                "hops": hops,
+                "error": "Invalid redirect location"
+            }
+
+        current_url = next_url
+
+    # Hard redirect limit reached
+    return {
+        "original_url": url,
+        "final_url": current_url,
+        "redirect_count": len(hops),
+        "loop_detected": False,
+        "max_redirects_reached": True,
+        "completed": False,
+        "hops": hops,
+        "error": "Maximum redirect limit reached"
     }
 
 def analyze_url(url):
