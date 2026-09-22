@@ -1332,6 +1332,100 @@ def follow_redirect_chain(url, max_redirects=5, timeout=5):
         "error": "Maximum redirect limit reached"
     }
 
+def analyze_redirect_chain(chain):
+    """
+    Analyze a completed redirect chain for security-relevant behavior.
+
+    Returns:
+        {
+            "redirect_count": ...,
+            "domains": [...],
+            "cross_domain_redirect": ...,
+            "https_downgrade": ...,
+            "final_domain": ...,
+            "findings": [...]
+        }
+    """
+
+    if not chain:
+        return {
+            "redirect_count": 0,
+            "domains": [],
+            "cross_domain_redirect": False,
+            "https_downgrade": False,
+            "final_domain": None,
+            "findings": []
+        }
+
+    hops = chain.get("hops", [])
+
+    domains = []
+    cross_domain_redirect = False
+    https_downgrade = False
+    findings = []
+
+    previous_url = None
+
+    for hop in hops:
+        current_url = hop.get("url")
+
+        if not current_url:
+            continue
+
+        parsed_current = urllib.parse.urlparse(current_url)
+        current_domain = parsed_current.hostname
+
+        if current_domain and current_domain not in domains:
+            domains.append(current_domain)
+
+        if previous_url:
+            parsed_previous = urllib.parse.urlparse(previous_url)
+
+            previous_domain = parsed_previous.hostname
+
+            if (
+                previous_domain
+                and current_domain
+                and previous_domain.lower() != current_domain.lower()
+            ):
+                cross_domain_redirect = True
+
+            if (
+                parsed_previous.scheme.lower() == "https"
+                and parsed_current.scheme.lower() == "http"
+            ):
+                https_downgrade = True
+
+        previous_url = current_url
+
+    final_url = chain.get("final_url")
+
+    final_domain = None
+
+    if final_url:
+        final_domain = urllib.parse.urlparse(
+            final_url
+        ).hostname
+
+    if cross_domain_redirect:
+        findings.append(
+            "Redirect chain crosses between different domains"
+        )
+
+    if https_downgrade:
+        findings.append(
+            "Redirect chain downgrades from HTTPS to HTTP"
+        )
+
+    return {
+        "redirect_count": chain.get("redirect_count", 0),
+        "domains": domains,
+        "cross_domain_redirect": cross_domain_redirect,
+        "https_downgrade": https_downgrade,
+        "final_domain": final_domain,
+        "findings": findings
+    }
+
 def analyze_url(url):
     """
     Analyze a URL using explainable heuristic indicators.
