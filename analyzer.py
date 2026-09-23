@@ -1236,6 +1236,43 @@ def analyze_redirect_response(response):
         "has_location": bool(location)
     }
 
+def validate_redirect_target(url):
+    """
+    Validate a redirect target before following it.
+    """
+
+    if not url:
+        return {
+            "valid": False,
+            "reason": "Empty redirect target"
+        }
+
+    try:
+        parsed = urllib.parse.urlparse(url)
+
+        if parsed.scheme not in ("http", "https"):
+            return {
+                "valid": False,
+                "reason": "Unsupported redirect scheme"
+            }
+
+        if not parsed.hostname:
+            return {
+                "valid": False,
+                "reason": "Redirect target has no hostname"
+            }
+
+        return {
+            "valid": True,
+            "reason": None
+        }
+
+    except ValueError:
+        return {
+            "valid": False,
+            "reason": "Malformed redirect target"
+        }
+
 def follow_redirect_chain(url, max_redirects=5, timeout=5):
     """
     Follow HTTP redirects manually.
@@ -1328,14 +1365,17 @@ def follow_redirect_chain(url, max_redirects=5, timeout=5):
                 "error": None
             }
 
-        # Resolve relative Location values
+            # Resolve relative Location values
+            # Resolve relative Location values
         next_url = urllib.parse.urljoin(
             current_url,
             redirect["location"]
         )
 
-        # Malformed/empty destination
-        if not next_url:
+        # Validate redirect destination
+        target_validation = validate_redirect_target(next_url)
+
+        if not target_validation["valid"]:
             return {
                 "original_url": url,
                 "final_url": current_url,
@@ -1344,7 +1384,7 @@ def follow_redirect_chain(url, max_redirects=5, timeout=5):
                 "max_redirects_reached": False,
                 "completed": False,
                 "hops": hops,
-                "error": "Invalid redirect location"
+                "error": target_validation["reason"]
             }
 
         current_url = next_url
@@ -1511,6 +1551,31 @@ def analyze_redirect_chain(chain):
         "final_domain": final_domain,
         "findings": findings
     }
+
+def classify_redirect_chain(redirect_analysis):
+    """
+    Classify the overall redirect behavior.
+    """
+
+    if not redirect_analysis:
+        return "NO_REDIRECT_DATA"
+
+    if redirect_analysis.get("https_downgrade"):
+        return "HTTPS_DOWNGRADE"
+
+    if redirect_analysis.get("cross_domain_redirect"):
+        return "CROSS_DOMAIN"
+
+    redirect_count = redirect_analysis.get("redirect_count", 0)
+
+    if redirect_count >= 3:
+        return "MULTIPLE_REDIRECTS"
+
+    if redirect_count > 0:
+        return "SINGLE_REDIRECT"
+
+    return "NO_REDIRECT"
+
 
 def is_unsafe_network_target(hostname):
     """
@@ -1914,6 +1979,10 @@ def analyze_url(url):
         redirect_chain
     )
 
+    redirect_classification = classify_redirect_chain(
+    redirect_analysis
+    )
+
     redirect_risk = evaluate_redirect_risk(
         redirect_analysis
     )
@@ -1924,6 +1993,7 @@ def analyze_url(url):
     features.append({
         "name": "Redirect Intelligence",
         "redirect_count": redirect_analysis["redirect_count"],
+        "classification": redirect_classification,
         "domains": redirect_analysis["domains"],
         "cross_domain_redirect": redirect_analysis[
             "cross_domain_redirect"
