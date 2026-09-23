@@ -1332,6 +1332,63 @@ def follow_redirect_chain(url, max_redirects=5, timeout=5):
         "error": "Maximum redirect limit reached"
     }
 
+def evaluate_redirect_risk(redirect_analysis):
+    """
+    Evaluate security risk from redirect behavior.
+
+    Returns:
+        {
+            "score": int,
+            "findings": [...]
+        }
+    """
+
+    score = 0
+    findings = []
+
+    if not redirect_analysis:
+        return {
+            "score": 0,
+            "findings": []
+        }
+
+    redirect_count = redirect_analysis.get("redirect_count", 0)
+    cross_domain = redirect_analysis.get(
+        "cross_domain_redirect",
+        False
+    )
+    https_downgrade = redirect_analysis.get(
+        "https_downgrade",
+        False
+    )
+
+    # Multiple redirects
+    if redirect_count >= 3:
+        score += 10
+        findings.append(
+            "URL uses multiple redirects"
+        )
+
+    # Cross-domain redirect
+    if cross_domain:
+        score += 10
+        findings.append(
+            "Redirect chain crosses between different domains"
+        )
+
+    # HTTPS → HTTP downgrade
+    if https_downgrade:
+        score += 20
+        findings.append(
+            "Redirect chain downgrades from HTTPS to HTTP"
+        )
+
+    return {
+        "score": score,
+        "findings": findings
+    }
+
+
 def analyze_redirect_chain(chain):
     """
     Analyze a completed redirect chain for security-relevant behavior.
@@ -1454,6 +1511,10 @@ def analyze_url(url):
         normalized_url = "http://" + original_url
     else:
         normalized_url = original_url
+
+    redirect_chain = None
+    redirect_analysis = None
+    redirect_risk = None
 
     # --------------------------------------------------
     # STAGE 2.1
@@ -1692,13 +1753,65 @@ def analyze_url(url):
         for finding in tls_risk["findings"]:
             findings.append(finding)
 
-        
+        if tls_features is not None:
+            features.append({
+                "name": "TLS Intelligence",
+                "value": tls_features
+            })
 
-        dns_risk = evaluate_dns_risk(dns_features)
-        score += dns_risk["score"]
+        # Redirect Intelligence
+    redirect_chain = follow_redirect_chain(
+        normalized_url,
+        max_redirects=5,
+        timeout=5
+    )
 
-        for finding in dns_risk["findings"]:
-            findings.append(finding)
+    redirect_analysis = analyze_redirect_chain(
+        redirect_chain
+    )
+
+    redirect_risk = evaluate_redirect_risk(
+        redirect_analysis
+    )
+
+    score += redirect_risk["score"]
+    findings.extend(redirect_risk["findings"])
+
+    features.append({
+        "name": "Redirect Intelligence",
+        "redirect_count": redirect_analysis["redirect_count"],
+        "domains": redirect_analysis["domains"],
+        "cross_domain_redirect": redirect_analysis[
+            "cross_domain_redirect"
+        ],
+        "https_downgrade": redirect_analysis[
+            "https_downgrade"
+        ],
+        "final_domain": redirect_analysis[
+            "final_domain"
+        ],
+        "completed": redirect_chain.get(
+            "completed",
+            False
+        ),
+        "loop_detected": redirect_chain.get(
+            "loop_detected",
+            False
+        ),
+        "max_redirects_reached": redirect_chain.get(
+            "max_redirects_reached",
+            False
+        ),
+        "error": redirect_chain.get("error")
+    })
+
+    dns_risk = evaluate_dns_risk(dns_features)
+    score += dns_risk["score"]
+
+    for finding in dns_risk["findings"]:
+        findings.append(finding)
+
+
 
     # --------------------------------------------------
     # BASIC URL INFORMATION
@@ -1732,12 +1845,6 @@ def analyze_url(url):
         "name": "DNS Intelligence",
         "value": dns_features
     })
-
-    if tls_features is not None:
-        features.append({
-            "name": "TLS Intelligence",
-            "value": tls_features
-        })
 
     # --------------------------------------------------
     # HTTPS
