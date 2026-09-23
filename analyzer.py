@@ -1,5 +1,6 @@
 from pyexpat import features
-from urllib.parse import urlparse, parse_qs, unquote
+import urllib.parse
+from urllib.parse import urlparse, unquote, urljoin, urlsplit, parse_qs
 import ipaddress
 import math
 import re
@@ -1114,19 +1115,47 @@ def make_http_request(url, timeout=5):
             "headers": {},
             "error": "No URL provided"
         }
+    parsed = urllib.parse.urlparse(url)
+    hostname = parsed.hostname
+
+    network_check = is_unsafe_network_target(hostname)
+
+    if network_check["unsafe"]:
+        return {
+            "success": False,
+            "url": url,
+            "status_code": None,
+            "location": None,
+            "headers": {},
+            "error": (
+                "Blocked network target: "
+                + network_check["reason"]
+            )
+        }
+
+    request = urllib.request.Request(
+        url,
+        headers={
+            "User-Agent": "QRShield/1.0"
+        }
+    )
+
+    opener = urllib.request.build_opener(
+        NoRedirectHandler()
+    )
+    request = urllib.request.Request(
+        url,
+        headers={
+            "User-Agent": "QRShield/1.0"
+        }
+    )
+
+    opener = urllib.request.build_opener(
+        NoRedirectHandler()
+    )
+
 
     try:
-        request = urllib.request.Request(
-            url,
-            headers={
-                "User-Agent": "QRShield/1.0"
-            }
-        )
-
-        opener = urllib.request.build_opener(
-            NoRedirectHandler()
-        )
-
         response = opener.open(
             request,
             timeout=timeout
@@ -1483,6 +1512,114 @@ def analyze_redirect_chain(chain):
         "findings": findings
     }
 
+def is_unsafe_network_target(hostname):
+    """
+    Determine whether a hostname resolves to a local,
+    private, loopback, link-local, or otherwise non-public
+    IP address.
+
+    Returns:
+        {
+            "unsafe": True/False,
+            "addresses": [...],
+            "reason": ...
+        }
+    """
+
+    if not hostname:
+        return {
+            "unsafe": True,
+            "addresses": [],
+            "reason": "No hostname provided"
+        }
+
+    # Direct IP address
+    try:
+        ip = ipaddress.ip_address(hostname)
+
+        if (
+            ip.is_private
+            or ip.is_loopback
+            or ip.is_link_local
+            or ip.is_reserved
+            or ip.is_multicast
+            or ip.is_unspecified
+        ):
+            return {
+                "unsafe": True,
+                "addresses": [str(ip)],
+                "reason": "Non-public IP address"
+            }
+
+        return {
+            "unsafe": False,
+            "addresses": [str(ip)],
+            "reason": None
+        }
+
+    except ValueError:
+        pass
+
+    # Hostname → IP resolution
+    try:
+        results = socket.getaddrinfo(
+            hostname,
+            None,
+            type=socket.SOCK_STREAM
+        )
+
+        addresses = []
+
+        for result in results:
+            address = result[4][0]
+
+            if address not in addresses:
+                addresses.append(address)
+
+        for address in addresses:
+            ip = ipaddress.ip_address(address)
+
+            if (
+                ip.is_private
+                or ip.is_loopback
+                or ip.is_link_local
+                or ip.is_reserved
+                or ip.is_multicast
+                or ip.is_unspecified
+            ):
+                return {
+                    "unsafe": True,
+                    "addresses": addresses,
+                    "reason": "Hostname resolves to a non-public IP address"
+                }
+
+        return {
+            "unsafe": False,
+            "addresses": addresses,
+            "reason": None
+        }
+
+    except socket.gaierror:
+        return {
+            "unsafe": True,
+            "addresses": [],
+            "reason": "Hostname could not be resolved"
+        }
+
+    except (socket.timeout, TimeoutError):
+        return {
+            "unsafe": True,
+            "addresses": [],
+            "reason": "Hostname resolution timed out"
+        }
+
+    except OSError as exc:
+        return {
+            "unsafe": True,
+            "addresses": [],
+            "reason": f"Network resolution error: {exc}"
+        }
+
 def analyze_url(url):
     """
     Analyze a URL using explainable heuristic indicators.
@@ -1621,7 +1758,7 @@ def analyze_url(url):
             )
         })
 
-        # Hostname / subdomain structure analysis
+    # Hostname / subdomain structure analysis
     hostname_analysis = analyze_hostname_structure(hostname)
 
     features.append({
@@ -1657,7 +1794,7 @@ def analyze_url(url):
             "features": []
         }
 
-        # Path and query deception analysis
+    # Path and query deception analysis
     path_query_analysis = analyze_path_query_deception(parsed)
 
     if path_query_analysis["suspicious_path_keywords"]:
@@ -1700,6 +1837,12 @@ def analyze_url(url):
     # STAGE 3 / DNS INTELLIGENCE
     dns_analysis = analyze_dns(hostname)
     dns_features = build_dns_features(dns_analysis)
+
+    dns_risk = evaluate_dns_risk(dns_features)
+    score += dns_risk["score"]
+
+    for finding in dns_risk["findings"]:
+        findings.append(finding)
 
     # STAGE 4 / TLS INTELLIGENCE
     tls_features = None
@@ -1759,7 +1902,8 @@ def analyze_url(url):
                 "value": tls_features
             })
 
-        # Redirect Intelligence
+    # Redirect Intelligence
+
     redirect_chain = follow_redirect_chain(
         normalized_url,
         max_redirects=5,
@@ -1804,14 +1948,6 @@ def analyze_url(url):
         ),
         "error": redirect_chain.get("error")
     })
-
-    dns_risk = evaluate_dns_risk(dns_features)
-    score += dns_risk["score"]
-
-    for finding in dns_risk["findings"]:
-        findings.append(finding)
-
-
 
     # --------------------------------------------------
     # BASIC URL INFORMATION
