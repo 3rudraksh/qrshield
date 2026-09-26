@@ -2298,6 +2298,309 @@ def evaluate_risk_engine(
 
     }
 
+def build_finding_explanation(finding):
+    """
+    Convert a QRShield finding into a structured explanation.
+    """
+
+    if not isinstance(finding, dict):
+        return {
+            "title": "Security finding",
+            "severity": "info",
+            "what": str(finding),
+            "why_it_matters": "QRShield detected an item that requires attention.",
+            "user_action": "Review the destination before interacting with it."
+        }
+
+    severity = finding.get("severity", "info")
+    message = finding.get("message")
+    indicator = finding.get("indicator")
+    detail = finding.get("detail")
+
+    title = indicator or "Security finding"
+    what = detail or message or "QRShield detected a security-related indicator."
+
+    if severity == "high":
+        why_it_matters = (
+            "This indicator can represent a significant security risk "
+            "and should be investigated before interacting with the destination."
+        )
+
+        user_action = (
+            "Do not interact with the destination until its legitimacy "
+            "has been verified."
+        )
+
+    elif severity == "medium":
+        why_it_matters = (
+            "This indicator does not prove that the destination is malicious, "
+            "but it increases the need for caution."
+        )
+
+        user_action = (
+            "Review the destination carefully before continuing."
+        )
+
+    elif severity == "low":
+        why_it_matters = (
+            "This is a weaker indicator that provides additional context "
+            "about the destination."
+        )
+
+        user_action = (
+            "Consider this indicator together with the other findings."
+        )
+
+    else:
+        why_it_matters = (
+            "QRShield detected an informational security indicator."
+        )
+
+        user_action = (
+            "Review the finding together with the overall risk assessment."
+        )
+
+    return {
+        "title": title,
+        "severity": severity,
+        "what": what,
+        "why_it_matters": why_it_matters,
+        "user_action": user_action
+    }
+
+def build_overall_explanation(risk_analysis):
+    """
+    Build a human-readable explanation of the overall risk assessment.
+    """
+
+    if not isinstance(risk_analysis, dict):
+        return "QRShield could not generate an overall risk explanation."
+
+    risk = risk_analysis.get("risk", "UNKNOWN")
+    risk_basis = risk_analysis.get(
+        "risk_basis",
+        "Unknown"
+    )
+
+    correlation = risk_analysis.get(
+        "correlation",
+        {}
+    )
+
+    correlation_count = correlation.get(
+        "count",
+        0
+    )
+
+    if (
+        risk == "LOW RISK"
+        and risk_basis == "No significant indicators"
+    ):
+        return (
+            "QRShield did not detect significant security "
+            "indicators for this destination."
+        )
+
+    basis_text = {
+        "External threat intelligence":
+            "external threat intelligence identified the destination",
+        "HTTPS downgrade detected":
+            "an HTTPS downgrade was detected",
+        "TLS certificate identity mismatch":
+            "a TLS certificate identity mismatch was detected",
+        "Invalid TLS certificate validity":
+            "the TLS certificate has an invalid validity state",
+        "Cross-domain redirect behavior":
+            "cross-domain redirect behavior was detected",
+        "Multiple redirects":
+            "multiple redirects were detected",
+        "DNS resolution failure":
+            "DNS resolution failed for the hostname",
+        "Multiple high-severity indicators":
+            "multiple high-severity indicators were detected",
+        "High-severity indicator":
+            "a high-severity indicator was detected",
+        "Multiple medium-severity indicators":
+            "multiple medium-severity indicators were detected",
+        "Heuristic indicators":
+            "heuristic security indicators were detected"
+    }
+
+    explanation_basis = basis_text.get(
+        risk_basis,
+        "security indicators were detected"
+    )
+
+    explanation = (
+        f"QRShield classified this destination as {risk} "
+        f"because {explanation_basis}."
+    )
+
+    if correlation_count >= 2:
+        explanation += (
+            " Multiple security indicators reinforce this assessment."
+        )
+
+    return explanation
+
+def build_risk_evidence_explanation(risk_analysis):
+    """
+    Explain the evidence supporting the QRShield risk assessment.
+    """
+
+    if not isinstance(risk_analysis, dict):
+        return "Risk evidence is unavailable."
+
+    risk = risk_analysis.get("risk", "UNKNOWN")
+    risk_basis = risk_analysis.get(
+        "risk_basis",
+        "Unknown"
+    )
+
+    evidence = risk_analysis.get(
+        "evidence",
+        {}
+    )
+
+    high_count = evidence.get("high", 0)
+    medium_count = evidence.get("medium", 0)
+    low_count = evidence.get("low", 0)
+
+    correlation = risk_analysis.get(
+        "correlation",
+        {}
+    )
+
+    correlation_count = correlation.get(
+        "count",
+        0
+    )
+
+    correlation_level = correlation.get(
+        "level",
+        "NONE"
+    )
+
+    finding_parts = []
+
+    if high_count:
+        finding_parts.append(
+            f"{high_count} high-severity finding"
+            + ("s" if high_count != 1 else "")
+        )
+
+    if medium_count:
+        finding_parts.append(
+            f"{medium_count} medium-severity finding"
+            + ("s" if medium_count != 1 else "")
+        )
+
+    if low_count:
+        finding_parts.append(
+            f"{low_count} low-severity finding"
+            + ("s" if low_count != 1 else "")
+        )
+
+    if finding_parts:
+        evidence_text = ", ".join(finding_parts)
+    else:
+        evidence_text = "no individual security findings"
+
+    if correlation_count > 0:
+        correlation_text = (
+            f"{correlation_count} correlated security signal"
+            + ("s" if correlation_count != 1 else "")
+            + f" classified at {correlation_level} correlation"
+        )
+    else:
+        correlation_text = "no correlated security signals"
+
+    return (
+        f"Risk level: {risk}. "
+        f"Primary basis: {risk_basis}. "
+        f"Evidence: {evidence_text}. "
+        f"Correlation: {correlation_text}."
+    )
+
+def validate_explainability(result):
+    """
+    Validate that QRShield produced a complete explainability result.
+    """
+
+    if not isinstance(result, dict):
+        return {
+            "valid": False,
+            "missing": ["result"]
+        }
+
+    required_fields = [
+        "score",
+        "risk",
+        "findings",
+        "explanations",
+        "overall_explanation",
+        "risk_evidence_explanation",
+        "risk_analysis"
+    ]
+
+    missing = [
+        field
+        for field in required_fields
+        if field not in result
+    ]
+
+    if missing:
+        return {
+            "valid": False,
+            "missing": missing
+        }
+
+    risk_analysis = result.get("risk_analysis")
+
+    if not isinstance(risk_analysis, dict):
+        return {
+            "valid": False,
+            "missing": ["risk_analysis"]
+        }
+
+    required_risk_fields = [
+        "score",
+        "risk",
+        "risk_basis",
+        "confidence",
+        "evidence",
+        "correlation"
+    ]
+
+    missing_risk_fields = [
+        field
+        for field in required_risk_fields
+        if field not in risk_analysis
+    ]
+
+    if missing_risk_fields:
+        return {
+            "valid": False,
+            "missing": missing_risk_fields
+        }
+
+    if result["score"] != risk_analysis["score"]:
+        return {
+            "valid": False,
+            "missing": ["score_consistency"]
+        }
+
+    if result["risk"] != risk_analysis["risk"]:
+        return {
+            "valid": False,
+            "missing": ["risk_consistency"]
+        }
+
+    return {
+        "valid": True,
+        "missing": []
+    }
+
 def analyze_reputation(url, hostname=None):
     """
     Analyze URL reputation using multiple threat-intelligence providers.
@@ -2397,6 +2700,87 @@ def evaluate_reputation_risk(reputation_analysis):
         "findings": findings
     }
 
+def detect_qr_content_type(content):
+    """
+    Identify the basic type of data decoded from a QR code.
+    """
+
+    if not content:
+        return "EMPTY"
+
+    content = content.strip()
+
+    if content.lower().startswith(("http://", "https://")):
+        return "URL"
+
+    if content.upper().startswith("WIFI:"):
+        return "WIFI"
+
+    if content.upper().startswith("BEGIN:VCARD"):
+        return "VCARD"
+
+    if content.lower().startswith("mailto:"):
+        return "EMAIL"
+
+    if content.lower().startswith("tel:"):
+        return "PHONE"
+
+    if content.lower().startswith("sms:"):
+        return "SMS"
+
+    if content.lower().startswith("geo:"):
+        return "GEOLOCATION"
+
+    return "TEXT"
+
+def analyze_wifi_qr(content):
+    """
+    Extract basic security information from a Wi-Fi QR payload.
+    """
+
+    if not content or not content.upper().startswith("WIFI:"):
+        return {
+            "valid": False,
+            "authentication": None,
+            "ssid": None,
+            "hidden": False,
+            "open_network": False,
+            "finding": None
+        }
+
+    data = content[5:].rstrip(";")
+    fields = {}
+
+    for item in data.split(";"):
+        if ":" not in item:
+            continue
+
+        key, value = item.split(":", 1)
+        fields[key.upper()] = value
+
+    authentication = fields.get("T", "").upper()
+    ssid = fields.get("S")
+    hidden = fields.get("H", "").lower() == "true"
+
+    open_network = authentication in ("", "NOPASS")
+
+    finding = None
+
+    if open_network:
+        finding = (
+            "Wi-Fi QR code describes an open network "
+            "without password-based authentication."
+        )
+
+    return {
+        "valid": True,
+        "authentication": authentication or "UNKNOWN",
+        "ssid": ssid,
+        "hidden": hidden,
+        "open_network": open_network,
+        "finding": finding
+    }
+
 def analyze_url(url):
     """
     Analyze a URL using explainable heuristic indicators.
@@ -2407,7 +2791,51 @@ def analyze_url(url):
     features = []
 
     original_url = url.strip()
+    content_type = detect_qr_content_type(url)
 
+    wifi_analysis = None
+
+    if content_type == "WIFI":
+        wifi_analysis = analyze_wifi_qr(url)
+
+    if content_type != "URL":
+        return {
+            "url": url,
+            "content_type": content_type,
+            "wifi_analysis": wifi_analysis,
+            "score": 0,
+            "risk": "LOW RISK",
+            "risk_analysis": {
+                "score": 0,
+                "risk": "LOW RISK",
+                "risk_basis": "Non-URL QR content",
+                "confidence": "LOW",
+                "evidence": {
+                    "high": 0,
+                    "medium": 0,
+                    "low": 0
+                },
+                "reputation_confirmed": False,
+                "signals": {},
+                "correlation": {
+                    "level": "NONE",
+                    "count": 0,
+                    "signals": []
+                }
+            },
+            "findings": [],
+            "explanations": [],
+            "overall_explanation": (
+                f"QRShield detected {content_type} content. "
+                "URL security analysis was not applied."
+            ),
+            "risk_evidence_explanation": (
+                "No URL security indicators were evaluated because "
+                "the QR content is not a URL."
+            ),
+            "features": {}
+        }
+    
     if not original_url:
         return {
             "url": "",
@@ -3292,6 +3720,20 @@ def analyze_url(url):
         tls_features=tls_features,
         redirect_analysis=redirect_analysis
     )
+
+    overall_explanation = build_overall_explanation(
+    risk_analysis
+    )
+
+    risk_evidence_explanation = build_risk_evidence_explanation(
+    risk_analysis
+    )
+
+
+    explanations = [
+    build_finding_explanation(finding)
+    for finding in findings
+    ]
     
     score = risk_analysis["score"]
     risk = risk_analysis["risk"]
@@ -3337,9 +3779,14 @@ def analyze_url(url):
 
     return {
         "url": normalized_url,
+        "content_type": content_type,
+        "wifi_analysis": wifi_analysis,
         "score": score,
         "risk": risk,
         "risk_analysis": risk_analysis,
+        "explanations": explanations,
+        "overall_explanation": overall_explanation,
+        "risk_evidence_explanation": risk_evidence_explanation,
         "findings": findings,
         "features": features
     }
