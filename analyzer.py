@@ -1460,7 +1460,6 @@ def evaluate_redirect_risk(redirect_analysis):
         "findings": findings
     }
 
-
 def analyze_redirect_chain(chain):
     """
     Analyze a completed redirect chain for security-relevant behavior.
@@ -1578,7 +1577,6 @@ def classify_redirect_chain(redirect_analysis):
         return "SINGLE_REDIRECT"
 
     return "NO_REDIRECT"
-
 
 def is_unsafe_network_target(hostname):
     """
@@ -2745,6 +2743,7 @@ def analyze_wifi_qr(content):
             "ssid": None,
             "hidden": False,
             "open_network": False,
+            "unknown_security": False,
             "finding": None
         }
 
@@ -2762,9 +2761,20 @@ def analyze_wifi_qr(content):
     ssid = fields.get("S")
     hidden = fields.get("H", "").lower() == "true"
 
-    open_network = authentication in ("", "NOPASS")
+    open_network = authentication == "NOPASS"
+    unknown_security = authentication == ""
 
     finding = None
+
+    if open_network:
+        finding = (
+            "Wi-Fi QR code describes an open network "
+            "without password-based authentication."
+        )
+    elif unknown_security:
+        finding = (
+            "Wi-Fi QR code does not specify an authentication type."
+        )
 
     if open_network:
         finding = (
@@ -2778,8 +2788,146 @@ def analyze_wifi_qr(content):
         "ssid": ssid,
         "hidden": hidden,
         "open_network": open_network,
+        "unknown_security": unknown_security,
         "finding": finding
     }
+
+def analyze_vcard_qr(content):
+    """
+    Extract basic security-relevant information from a vCard QR payload.
+    """
+
+    if not content or not content.upper().startswith("BEGIN:VCARD"):
+        return {
+            "valid": False,
+            "name": None,
+            "phone": None,
+            "email": None,
+            "urls": [],
+            "finding": None
+        }
+
+    lines = content.splitlines()
+
+    name = None
+    phone = None
+    email = None
+    urls = []
+
+    for line in lines:
+        upper_line = line.upper()
+
+        if upper_line.startswith("FN:"):
+            name = line[3:].strip()
+
+        elif upper_line.startswith("TEL:"):
+            phone = line[4:].strip()
+
+        elif upper_line.startswith("EMAIL:"):
+            email = line[6:].strip()
+
+        elif upper_line.startswith(("URL:", "URL;")):
+            value = line.split(":", 1)[1].strip()
+
+            if value:
+                urls.append(value)
+
+    finding = None
+
+    if urls:
+        finding = (
+            "vCard QR code contains a web URL that should be "
+            "reviewed before opening."
+        )
+
+    return {
+        "valid": True,
+        "name": name,
+        "phone": phone,
+        "email": email,
+        "urls": urls,
+        "finding": finding
+    }
+
+def extract_embedded_urls(content):
+    """
+    Extract HTTP/HTTPS URLs embedded inside non-URL QR content.
+    """
+
+    if not content:
+        return []
+
+    urls = re.findall(
+        r'https?://[^\s<>"\']+',
+        content,
+        re.IGNORECASE
+    )
+
+    return [
+        url.rstrip(".,;:!?)]}")
+        for url in urls
+    ]
+
+def analyze_message_qr(content, content_type):
+    """
+    Extract security-relevant information from EMAIL or SMS QR content.
+    """
+
+    if not content or content_type not in ("EMAIL", "SMS"):
+        return {
+            "valid": False,
+            "recipient": None,
+            "message": None,
+            "urls": [],
+            "finding": None
+        }
+
+    recipient = None
+    message = None
+
+    if content_type == "EMAIL":
+        data = content[7:]  # remove mailto:
+
+        if "?" in data:
+            recipient, query = data.split("?", 1)
+            params = urllib.parse.parse_qs(query)
+            message = params.get("body", [None])[0]
+        else:
+            recipient = data
+
+    elif content_type == "SMS":
+        data = content[4:]  # remove sms:
+
+        if "?" in data:
+            recipient, query = data.split("?", 1)
+            params = urllib.parse.parse_qs(query)
+            message = params.get("body", [None])[0]
+        else:
+            recipient = data
+
+    urls = extract_embedded_urls(content)
+
+    finding = None
+
+    if urls:
+        finding = (
+            f"{content_type} QR code contains a web URL "
+            "that should be reviewed before opening."
+        )
+
+    return {
+        "valid": True,
+        "recipient": recipient,
+        "message": message,
+        "urls": urls,
+        "finding": finding
+    }
+
+# ------------------
+# ------------------
+# ------------------
+# ------------------
+# ------------------
 
 def analyze_url(url):
     """
@@ -2792,17 +2940,31 @@ def analyze_url(url):
 
     original_url = url.strip()
     content_type = detect_qr_content_type(url)
+    embedded_urls = extract_embedded_urls(url)
 
     wifi_analysis = None
+    vcard_analysis = None
+    message_analysis = None
+
 
     if content_type == "WIFI":
         wifi_analysis = analyze_wifi_qr(url)
+    if content_type == "VCARD":
+        vcard_analysis = analyze_vcard_qr(url)
+    if content_type in ("EMAIL", "SMS"):
+        message_analysis = analyze_message_qr(
+            url,
+            content_type
+        )
 
     if content_type != "URL":
         return {
             "url": url,
             "content_type": content_type,
             "wifi_analysis": wifi_analysis,
+            "vcard_analysis": vcard_analysis,
+            "message_analysis": message_analysis,
+            "embedded_urls": embedded_urls,
             "score": 0,
             "risk": "LOW RISK",
             "risk_analysis": {
@@ -3781,6 +3943,9 @@ def analyze_url(url):
         "url": normalized_url,
         "content_type": content_type,
         "wifi_analysis": wifi_analysis,
+        "vcard_analysis": vcard_analysis,
+        "message_analysis": message_analysis,
+        "embedded_urls": embedded_urls,
         "score": score,
         "risk": risk,
         "risk_analysis": risk_analysis,
