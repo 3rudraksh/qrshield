@@ -2925,7 +2925,71 @@ def analyze_message_qr(content, content_type):
 
 # ------------------
 # ------------------
+def build_security_report(result):
+    """
+    Build a structured security report from a QRShield analysis result.
+    """
+
+    if not isinstance(result, dict):
+        return {
+            "report_type": "QRShield Security Report",
+            "status": "INVALID"
+        }
+
+    risk_analysis = result.get("risk_analysis", {})
+    features = result.get("features", {})
+
+    return {
+        "report_type": "QRShield Security Report",
+        "content": {
+            "decoded_content": result.get("url"),
+            "content_type": result.get("content_type")
+        },
+        "assessment": {
+            "score": result.get("score"),
+            "risk": result.get("risk"),
+            "risk_basis": risk_analysis.get("risk_basis"),
+            "confidence": risk_analysis.get("confidence")
+        },
+        "evidence": {
+            "findings": result.get("findings", []),
+            "explanations": result.get("explanations", []),
+            "risk_evidence": result.get(
+                "risk_evidence_explanation"
+            ),
+            "correlation": risk_analysis.get(
+                "correlation",
+                {}
+            )
+        },
+        "technical_analysis": features,
+        "summary": result.get(
+            "overall_explanation"
+        )
+    }
 # ------------------
+def export_security_report(result, filepath):
+    """
+    Export a QRShield security report as JSON.
+    """
+
+    if not isinstance(result, dict):
+        raise ValueError("Invalid QRShield analysis result.")
+
+    report = result.get("security_report")
+
+    if not isinstance(report, dict):
+        raise ValueError("Security report is unavailable.")
+
+    with open(filepath, "w", encoding="utf-8") as file:
+        json.dump(
+            report,
+            file,
+            indent=4,
+            ensure_ascii=False
+        )
+
+    return filepath
 # ------------------
 # ------------------
 
@@ -3953,5 +4017,17 @@ def analyze_url(url):
         "overall_explanation": overall_explanation,
         "risk_evidence_explanation": risk_evidence_explanation,
         "findings": findings,
-        "features": features
+        "features": features,
+        "security_report": build_security_report({
+            "url": url,
+            "content_type": content_type,
+            "score": score,
+            "risk": risk,
+            "risk_analysis": risk_analysis,
+            "findings": findings,
+            "explanations": explanations,
+            "overall_explanation": overall_explanation,
+            "risk_evidence_explanation": risk_evidence_explanation,
+            "features": features
+        })
     }
