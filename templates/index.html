@@ -18,7 +18,7 @@
         <h1>QRShield</h1>
 
         <p>
-            Explainable Security Analysis for QR-Based Links
+            Explainable Security Analysis for QR-Based Content
         </p>
     </header>
 
@@ -56,7 +56,7 @@
             <input
                 type="file"
                 name="qr_image"
-                accept="image/*"
+                accept=".png,.jpg,.jpeg"
                 required
             >
 
@@ -86,6 +86,7 @@
 
         <h2>Security Analysis</h2>
 
+
         <div class="risk-box">
 
             <h1>{{ result.risk }}</h1>
@@ -95,12 +96,17 @@
                 <strong>{{ result.score }}/100</strong>
             </p>
 
+            <p>
+                Content Type:
+                <strong>{{ result.content_type }}</strong>
+            </p>
+
         </div>
 
 
         <div class="url-box">
 
-            <strong>Destination:</strong>
+            <strong>Decoded Content:</strong>
 
             <p>
                 {{ result.url }}
@@ -109,19 +115,458 @@
         </div>
 
 
-        <h3>Why?</h3>
+        {% if result.overall_explanation %}
 
-        <ul>
+        <div class="card">
 
-            {% for finding in result.findings %}
+            <h3>Overall Assessment</h3>
 
-            <li>
-                {{ finding }}
-            </li>
+            <p>
+                {{ result.overall_explanation }}
+            </p>
+
+        </div>
+
+        {% endif %}
+
+
+        {% if result.risk_evidence_explanation %}
+
+        <div class="card">
+
+            <h3>Evidence Summary</h3>
+
+            <div class="evidence-summary">
+
+                <div class="evidence-item">
+                    <strong>Risk Level</strong>
+                    <span>{{ result.risk }}</span>
+                </div>
+
+                <div class="evidence-item">
+                    <strong>Primary Risk Basis</strong>
+                    <span>{{ result.risk_analysis.risk_basis }}</span>
+                </div>
+
+                <div class="evidence-item">
+                    <strong>Evidence</strong>
+                    <span>
+                        Medium-severity findings:
+                        {{ result.risk_analysis.evidence.medium }}
+                    </span>
+                    <span>
+                        Low-severity findings:
+                        {{ result.risk_analysis.evidence.low }}
+                    </span>
+                </div>
+
+                <div class="evidence-item">
+                    <strong>Correlation</strong>
+                    <span>
+                        {{ result.risk_evidence_explanation }}
+                    </span>
+                </div>
+
+            </div>
+
+        </div>
+
+        {% endif %}
+
+
+        {% if result.findings %}
+
+        <div class="card">
+
+            <h3>Security Findings</h3>
+
+            <div class="findings-list">
+
+                {% for finding in result.findings %}
+
+                <div class="finding-item">
+
+                    {% if finding.severity is defined %}
+
+                    <strong>
+                        {{ finding.severity | upper }}
+                    </strong>
+
+                    {% endif %}
+
+                    {% if finding.message is defined %}
+
+                    <p>
+                        {{ finding.message }}
+                    </p>
+
+                    {% endif %}
+
+                    {% if finding.indicator is defined %}
+
+                    <p>
+                        <strong>Indicator:</strong>
+                        {{ finding.indicator }}
+                    </p>
+
+                    {% endif %}
+
+                    {% if finding.detail is defined %}
+
+                    <p>
+                        <strong>Detail:</strong>
+                        {{ finding.detail }}
+                    </p>
+
+                    {% endif %}
+
+                </div>
+
+                {% endfor %}
+
+            </div>
+
+        </div>
+
+        {% endif %}
+
+
+        {% if result.explanations %}
+
+        <div class="card">
+
+            <h3>Why These Findings Matter</h3>
+
+            {% for explanation in result.explanations %}
+
+            <div>
+
+                <h4>
+                    {{ explanation.title }}
+                </h4>
+
+                <p>
+                    <strong>What:</strong>
+                    {{ explanation.what }}
+                </p>
+
+                <p>
+                    <strong>Why it matters:</strong>
+                    {{ explanation.why_it_matters }}
+                </p>
+
+                <p>
+                    <strong>Recommended action:</strong>
+                    {{ explanation.user_action }}
+                </p>
+
+            </div>
 
             {% endfor %}
 
-        </ul>
+        </div>
+
+        {% endif %}
+
+
+        {% if result.wifi_analysis %}
+
+        <div class="card">
+
+            <h3>Wi-Fi QR Analysis</h3>
+
+            <p>
+                Authentication:
+                <strong>
+                    {{ result.wifi_analysis.authentication }}
+                </strong>
+            </p>
+
+            <p>
+                SSID:
+                <strong>
+                    {{ result.wifi_analysis.ssid or "Not specified" }}
+                </strong>
+            </p>
+
+            {% if result.wifi_analysis.finding %}
+
+            <p>
+                {{ result.wifi_analysis.finding }}
+            </p>
+
+            {% endif %}
+
+        </div>
+
+        {% endif %}
+
+
+        {% if result.vcard_analysis %}
+
+        <div class="card">
+
+            <h3>vCard Analysis</h3>
+
+            <p>
+                Name:
+                <strong>
+                    {{ result.vcard_analysis.name or "Not specified" }}
+                </strong>
+            </p>
+
+            <p>
+                Phone:
+                <strong>
+                    {{ result.vcard_analysis.phone or "Not specified" }}
+                </strong>
+            </p>
+
+            <p>
+                Email:
+                <strong>
+                    {{ result.vcard_analysis.email or "Not specified" }}
+                </strong>
+            </p>
+
+            {% if result.vcard_analysis.urls %}
+
+            <p>
+                Embedded URLs:
+                <strong>
+                    {{ result.vcard_analysis.urls | join(", ") }}
+                </strong>
+            </p>
+
+            {% endif %}
+
+            {% if result.vcard_analysis.finding %}
+
+            <p>
+                {{ result.vcard_analysis.finding }}
+            </p>
+
+            {% endif %}
+
+        </div>
+
+        {% endif %}
+
+
+        {% if result.message_analysis %}
+
+        <div class="card">
+
+            <h3>{{ result.content_type }} QR Analysis</h3>
+
+            <p>
+                Recipient:
+                <strong>
+                    {{ result.message_analysis.recipient or "Not specified" }}
+                </strong>
+            </p>
+
+            {% if result.message_analysis.message %}
+
+            <p>
+                Message:
+                {{ result.message_analysis.message }}
+            </p>
+
+            {% endif %}
+
+            {% if result.message_analysis.urls %}
+
+            <p>
+                Embedded URLs:
+                <strong>
+                    {{ result.message_analysis.urls | join(", ") }}
+                </strong>
+            </p>
+
+            {% endif %}
+
+            {% if result.message_analysis.finding %}
+
+            <p>
+                {{ result.message_analysis.finding }}
+            </p>
+
+            {% endif %}
+
+        </div>
+
+        {% endif %}
+
+
+        {% if result.embedded_urls %}
+
+        <div class="card">
+
+            <h3>Embedded URLs</h3>
+
+            <ul>
+
+                {% for embedded_url in result.embedded_urls %}
+
+                <li>
+                    {{ embedded_url }}
+                </li>
+
+                {% endfor %}
+
+            </ul>
+
+        </div>
+
+        {% endif %}
+
+        {% if result.features %}
+
+        <div class="card">
+
+            <h3>Technical Analysis</h3>
+
+            {% for feature in result.features %}
+
+            <div class="technical-feature">
+
+                {% if feature.name %}
+
+                <h4>
+                    {{ feature.name }}
+                </h4>
+
+                {% endif %}
+
+
+                {% if feature.value is mapping %}
+
+                <div class="technical-details">
+
+                    {% for key, value in feature.value.items() %}
+
+                    <p>
+
+                        <strong>
+                            {{ key | replace("_", " ") | title }}:
+                        </strong>
+
+                        {% if value is mapping %}
+
+                        {{ value }}
+
+                        {% elif value is sequence and value is not string %}
+
+                        {{ value | join(", ") }}
+
+                        {% else %}
+
+                        {{ value }}
+
+                        {% endif %}
+
+                    </p>
+
+                    {% endfor %}
+
+                </div>
+
+
+                {% elif feature.value is sequence and feature.value is not string %}
+
+                <p>
+                    <strong>Details:</strong>
+                    {{ feature.value | join(", ") }}
+                </p>
+
+
+                {% elif feature.value is defined %}
+
+                <p>
+                    <strong>Value:</strong>
+                    {{ feature.value }}
+                </p>
+
+                {% endif %}
+
+
+                {% if feature.status is defined %}
+
+                <p>
+                    <strong>Status:</strong>
+                    {{ feature.status }}
+                </p>
+
+                {% endif %}
+
+
+                {% if feature.reputation is defined %}
+
+                <p>
+                    <strong>Reputation:</strong>
+                    {{ feature.reputation }}
+                </p>
+
+                {% endif %}
+
+
+                {% if feature.confidence is defined %}
+
+                <p>
+                    <strong>Confidence:</strong>
+                    {{ feature.confidence }}
+                </p>
+
+                {% endif %}
+
+            </div>
+
+            {% endfor %}
+
+        </div>
+
+        {% endif %}
+
+
+        {% if result.risk_analysis %}
+
+        <div class="card">
+
+            <h3>Risk Engine</h3>
+
+            <p>
+                Risk Basis:
+                <strong>
+                    {{ result.risk_analysis.risk_basis }}
+                </strong>
+            </p>
+
+            <p>
+                Confidence:
+                <strong>
+                    {{ result.risk_analysis.confidence }}
+                </strong>
+            </p>
+
+            <p>
+                High-severity findings:
+                {{ result.risk_analysis.evidence.high }}
+            </p>
+
+            <p>
+                Medium-severity findings:
+                {{ result.risk_analysis.evidence.medium }}
+            </p>
+
+            <p>
+                Low-severity findings:
+                {{ result.risk_analysis.evidence.low }}
+            </p>
+
+        </div>
+
+        {% endif %}
 
 
         {% if result.score > 50 %}
@@ -159,14 +604,76 @@
 
         {% endif %}
 
+        <form
+            method="POST"
+            action="{{ url_for('export_report') }}"
+        >
+
+        <input
+            type="hidden"
+            name="content"
+            value="{{ result.url }}"
+        >
+
+        <button type="submit">
+            Export Security Report
+        </button>
+
+        </form>
+
     </section>
 
     {% endif %}
 
+    {% if history %}
+
+    <section class="card">
+
+        <h3>Scan History</h3>
+
+        <div class="scan-history">
+
+            {% for scan in history %}
+
+            <div class="history-item">
+
+                <div class="history-time">
+                    {{ scan.timestamp }}
+                </div>
+
+                <div class="history-content">
+                    {{ scan.content }}
+                </div>
+
+                <div class="history-meta">
+
+                    <span>
+                        {{ scan.content_type }}
+                    </span>
+
+                    <span>
+                        {{ scan.risk }}
+                    </span>
+
+                    <span>
+                        {{ scan.score }}/100
+                    </span>
+
+                </div>
+
+            </div>
+
+            {% endfor %}
+
+        </div>
+
+    </section>
+
+    {% endif %}
 
     <footer>
 
-        QRShield — Cybersecurity Hackathon Prototype
+        QRShield — hRackers
 
     </footer>
 

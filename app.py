@@ -1,8 +1,12 @@
-from flask import Flask, render_template, request
-from analyzer import analyze_url
+from flask import Flask, render_template, request, send_file
+
+from analyzer import analyze_url, export_security_report
+
 import cv2
 import os
 import uuid
+import json
+from datetime import datetime
 
 
 app = Flask(__name__)
@@ -11,7 +15,11 @@ UPLOAD_FOLDER = "uploads"
 MAX_UPLOAD_SIZE = 5 * 1024 * 1024
 ALLOWED_EXTENSIONS = {".png", ".jpg", ".jpeg"}
 
+HISTORY_FILE = "scan_history.json"
+MAX_HISTORY = 20
+
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
 
 def decode_qr_with_preprocessing(image):
     """
@@ -20,6 +28,7 @@ def decode_qr_with_preprocessing(image):
     """
 
     detector = cv2.QRCodeDetector()
+
     images = [
         image,
         cv2.cvtColor(image, cv2.COLOR_BGR2GRAY),
@@ -40,6 +49,7 @@ def decode_qr_with_preprocessing(image):
             for text in decoded_info:
 
                 if text and text.strip():
+
                     cleaned = text.strip()
 
                     if cleaned not in decoded_codes:
@@ -59,6 +69,7 @@ def decode_qr_with_preprocessing(image):
                     decoded_codes.append(cleaned)
 
     return decoded_codes
+
 
 def analyze_image_quality(image):
     """
@@ -107,6 +118,64 @@ def analyze_image_quality(image):
     }
 
 
+def save_scan_history(result):
+    """
+    Save a successful scan's essential metadata.
+    QR image files are not stored.
+    """
+
+    if not isinstance(result, dict):
+        return
+
+    history = []
+
+    if os.path.exists(HISTORY_FILE):
+
+        try:
+
+            with open(
+                HISTORY_FILE,
+                "r",
+                encoding="utf-8"
+            ) as file:
+
+                history = json.load(file)
+
+                if not isinstance(history, list):
+                    history = []
+
+        except (json.JSONDecodeError, OSError):
+
+            history = []
+
+    history.insert(
+        0,
+        {
+            "timestamp": datetime.now().strftime(
+                "%Y-%m-%d %H:%M:%S"
+            ),
+            "content": result.get("url"),
+            "content_type": result.get("content_type"),
+            "risk": result.get("risk"),
+            "score": result.get("score")
+        }
+    )
+
+    history = history[:MAX_HISTORY]
+
+    with open(
+        HISTORY_FILE,
+        "w",
+        encoding="utf-8"
+    ) as file:
+
+        json.dump(
+            history,
+            file,
+            indent=4,
+            ensure_ascii=False
+        )
+
 
 @app.route("/", methods=["GET", "POST"])
 def index():
@@ -123,110 +192,207 @@ def index():
         url = request.form.get("url", "").strip()
 
         if url:
+
             result = analyze_url(url)
+
+            save_scan_history(result)
+
 
         # ----------------------------------------------
         # QR image input
         # ----------------------------------------------
 
-    qr_file = request.files.get("qr_image")
+        qr_file = request.files.get("qr_image")
 
-    if qr_file and qr_file.filename:
-        original_filename = qr_file.filename
-        extension = os.path.splitext(original_filename)[1].lower()
+        if qr_file and qr_file.filename:
 
-        if extension not in ALLOWED_EXTENSIONS:
-            error = "Invalid image type. Please upload a PNG, JPG, or JPEG image."
+            original_filename = qr_file.filename
 
-        else:
-            qr_file.seek(0, os.SEEK_END)
-            file_size = qr_file.tell()
-            qr_file.seek(0)
+            extension = os.path.splitext(
+                original_filename
+            )[1].lower()
 
-            if file_size > MAX_UPLOAD_SIZE:
-                error = "Image is too large. Maximum allowed size is 5 MB."
+            if extension not in ALLOWED_EXTENSIONS:
 
-            elif file_size == 0:
-                error = "The uploaded image is empty."
+                error = (
+                    "Invalid image type. Please upload "
+                    "a PNG, JPG, or JPEG image."
+                )
 
             else:
-                filename = str(uuid.uuid4()) + extension
-                filepath = os.path.join(UPLOAD_FOLDER, filename)
 
-                qr_file.save(filepath)
+                qr_file.seek(0, os.SEEK_END)
 
-                image = cv2.imread(filepath)
+                file_size = qr_file.tell()
 
-                if image is None:
+                qr_file.seek(0)
+
+                if file_size > MAX_UPLOAD_SIZE:
 
                     error = (
-                        "The uploaded file is not a valid "
-                        "readable image."
+                        "Image is too large. "
+                        "Maximum allowed size is 5 MB."
                     )
 
-                    os.remove(filepath)
+                elif file_size == 0:
+
+                    error = (
+                        "The uploaded image is empty."
+                    )
 
                 else:
 
-                    image_quality = analyze_image_quality(image)
+                    filename = (
+                        str(uuid.uuid4()) + extension
+                    )
 
-                    try:
+                    filepath = os.path.join(
+                        UPLOAD_FOLDER,
+                        filename
+                    )
 
-                        decoded_codes = decode_qr_with_preprocessing(image)
+                    qr_file.save(filepath)
 
-                        if len(decoded_codes) > 1:
+                    image = cv2.imread(filepath)
 
-                            error = (
-                                f"Multiple QR codes detected ({len(decoded_codes)}). "
-                                "Please upload an image containing one QR code at a time."
+                    if image is None:
+
+                        error = (
+                            "The uploaded file is not a valid "
+                            "readable image."
+                        )
+
+                        os.remove(filepath)
+
+                    else:
+
+                        image_quality = (
+                            analyze_image_quality(image)
+                        )
+
+                        try:
+
+                            decoded_codes = (
+                                decode_qr_with_preprocessing(
+                                    image
+                                )
                             )
 
-                        elif len(decoded_codes) == 1:
-
-                            result = analyze_url(
-                                decoded_codes[0]
-                            )
-
-                        else:
-
-                            if image_quality["quality"] == "LOW":
+                            if len(decoded_codes) > 1:
 
                                 error = (
-                                    "No readable QR code was detected. "
-                                    "Image quality may be affecting QR decoding."
+                                    f"Multiple QR codes detected "
+                                    f"({len(decoded_codes)}). "
+                                    "Please upload an image "
+                                    "containing one QR code "
+                                    "at a time."
                                 )
+
+                            elif len(decoded_codes) == 1:
+
+                                result = analyze_url(
+                                    decoded_codes[0]
+                                )
+
+                                save_scan_history(result)
 
                             else:
 
-                                error = (
-                                    "No readable QR code was detected "
-                                    "in the uploaded image."
-                                )
-                    except cv2.error:
+                                if (
+                                    image_quality["quality"]
+                                    == "LOW"
+                                ):
 
-                        error = (
-                            "QR decoding failed because the image "
-                            "could not be processed."
-                        )
+                                    error = (
+                                        "No readable QR code "
+                                        "was detected. Image "
+                                        "quality may be affecting "
+                                        "QR decoding."
+                                    )
 
-                    except Exception:
+                                else:
 
-                        error = (
-                            "An unexpected error occurred while "
-                            "processing the QR code."
-                        )
+                                    error = (
+                                        "No readable QR code "
+                                        "was detected in the "
+                                        "uploaded image."
+                                    )
 
-                    finally:
+                        except cv2.error:
 
-                        if os.path.exists(filepath):
-                            os.remove(filepath)
+                            error = (
+                                "QR decoding failed because "
+                                "the image could not be processed."
+                            )
+
+                        except Exception:
+
+                            error = (
+                                "An unexpected error occurred "
+                                "while processing the QR code."
+                            )
+
+                        finally:
+
+                            if os.path.exists(filepath):
+
+                                os.remove(filepath)
+
+    # ----------------------------------------------
+    # Load scan history
+    # ----------------------------------------------
+
+    history = []
+
+    if os.path.exists(HISTORY_FILE):
+
+        try:
+
+            with open(
+                HISTORY_FILE,
+                "r",
+                encoding="utf-8"
+            ) as file:
+
+                history = json.load(file)
+
+                if not isinstance(history, list):
+                    history = []
+
+        except (json.JSONDecodeError, OSError):
+
+            history = []
 
     return render_template(
         "index.html",
         result=result,
-        error=error
+        error=error,
+        history=history
     )
 
+@app.route("/export-report", methods=["POST"])
+def export_report():
+
+    content = request.form.get("content", "").strip()
+
+    if not content:
+        return "No analysis result available.", 400
+
+    result = analyze_url(content)
+
+    filepath = "qrshield_security_report.json"
+
+    export_security_report(
+        result,
+        filepath
+    )
+
+    return send_file(
+        filepath,
+        as_attachment=True,
+        download_name="qrshield_security_report.json",
+        mimetype="application/json"
+    )
 
 if __name__ == "__main__":
     app.run(debug=True)

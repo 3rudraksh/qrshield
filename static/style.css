@@ -110,3 +110,96 @@ footer {
     margin-top: 40px;
     color: #7b7d7d;
 }
+.technical-feature {
+    padding: 15px;
+    margin-top: 15px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+}
+
+.technical-feature h4 {
+    margin-top: 0;
+    margin-bottom: 10px;
+}
+
+.technical-details p,
+.technical-feature p {
+    margin: 6px 0;
+}
+
+
+.evidence-summary {
+    margin-top: 15px;
+}
+
+.evidence-item {
+    margin-bottom: 18px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #ddd;
+}
+
+.evidence-item:last-child {
+    margin-bottom: 0;
+    padding-bottom: 0;
+    border-bottom: none;
+}
+
+.evidence-item strong {
+    display: block;
+    margin-bottom: 6px;
+}
+
+.evidence-item span {
+    display: block;
+    margin-top: 4px;
+    line-height: 1.6;
+}
+
+.findings-list {
+    margin-top: 15px;
+}
+
+.finding-item {
+    padding: 12px 0;
+    border-bottom: 1px solid #ddd;
+}
+
+.finding-item:last-child {
+    border-bottom: none;
+}
+
+.finding-item p {
+    margin: 6px 0;
+    line-height: 1.6;
+}
+
+.scan-history {
+    margin-top: 15px;
+}
+
+.history-item {
+    padding: 15px 0;
+    border-bottom: 1px solid #ddd;
+}
+
+.history-item:last-child {
+    border-bottom: none;
+}
+
+.history-time {
+    font-size: 0.85rem;
+    margin-bottom: 6px;
+}
+
+.history-content {
+    font-weight: 600;
+    word-break: break-word;
+    margin-bottom: 8px;
+}
+
+.history-meta {
+    display: flex;
+    gap: 15px;
+    flex-wrap: wrap;
+    font-size: 0.9rem;
+}
