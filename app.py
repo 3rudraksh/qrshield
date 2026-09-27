@@ -176,6 +176,114 @@ def save_scan_history(result):
             ensure_ascii=False
         )
 
+@app.route("/dashboard", methods=["GET"])
+def dashboard():
+
+    history = []
+
+    if os.path.exists(HISTORY_FILE):
+        try:
+            with open(HISTORY_FILE, "r", encoding="utf-8") as file:
+                history = json.load(file)
+
+            if not isinstance(history, list):
+                history = []
+
+        except (json.JSONDecodeError, OSError):
+            history = []
+
+    total_scans = len(history)
+
+    low_risk = sum(
+        1 for scan in history
+        if scan.get("risk") == "LOW RISK"
+    )
+
+    caution = sum(
+        1 for scan in history
+        if scan.get("risk") == "CAUTION"
+    )
+
+    high_risk = sum(
+        1 for scan in history
+        if scan.get("risk") == "HIGH RISK"
+    )
+
+    scores = [
+        scan.get("score")
+        for scan in history
+        if isinstance(scan.get("score"), (int, float))
+    ]
+
+    average_score = (
+        round(sum(scores) / len(scores), 2)
+        if scores
+        else 0
+    )
+    today = datetime.now().date()
+
+    scans_today = 0
+    scans_last_7_days = 0
+
+    for scan in history:
+
+        try:
+            scan_date = datetime.strptime(
+                scan.get("timestamp", ""),
+                "%Y-%m-%d %H:%M:%S"
+            ).date()
+
+            days_old = (today - scan_date).days
+
+            if days_old == 0:
+                scans_today += 1
+
+            if 0 <= days_old < 7:
+                scans_last_7_days += 1
+
+        except (TypeError, ValueError):
+            continue
+
+    content_types = {}
+
+    for scan in history:
+
+        content_type = scan.get(
+            "content_type",
+            "UNKNOWN"
+        )
+
+        content_types[content_type] = (
+            content_types.get(content_type, 0) + 1
+        )
+
+    most_common_content_type = (
+        max(
+            content_types,
+            key=content_types.get
+        )
+        if content_types
+        else "N/A"
+    )
+
+    highest_score = max(
+        scores
+    ) if scores else 0
+
+    return render_template(
+        "dashboard.html",
+        history=history,
+        total_scans=total_scans,
+        low_risk=low_risk,
+        caution=caution,
+        high_risk=high_risk,
+        average_score=average_score,
+        scans_today=scans_today,
+        scans_last_7_days=scans_last_7_days,
+        most_common_content_type=most_common_content_type,
+        highest_score=highest_score
+    )
+
 
 @app.route("/", methods=["GET", "POST"])
 def index():

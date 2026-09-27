@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>QRShield Dashboard</title>
+
+    <style>
+
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1100px;
+            margin: auto;
+            padding: 30px;
+        }
+
+        h1 {
+            margin-bottom: 5px;
+        }
+
+        .subtitle {
+            margin-bottom: 30px;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+
+        .stat {
+            border: 1px solid #ddd;
+            padding: 20px;
+            border-radius: 8px;
+        }
+
+        .stat h3 {
+            margin-top: 0;
+        }
+
+        .stat-value {
+            font-size: 28px;
+            font-weight: bold;
+        }
+
+        .history-item {
+            border-top: 1px solid #ddd;
+            padding: 15px 0;
+        }
+
+        .history-content {
+            font-weight: bold;
+            word-break: break-word;
+        }
+
+        .history-meta {
+            margin-top: 6px;
+        }
+
+        @media (max-width: 800px) {
+            .stats {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 500px) {
+            .stats {
+                grid-template-columns: 1fr;
+            }
+        }
+            .risk-chart {
+            margin-top: 20px;
+        }
+
+        .risk-row {
+            display: grid;
+            grid-template-columns: 100px 1fr 40px;
+            gap: 12px;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .risk-label {
+            font-size: 0.9rem;
+            font-weight: bold;
+        }
+
+        .risk-bar-container {
+            height: 22px;
+            background: #eee;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .risk-bar {
+            height: 100%;
+            min-width: 2px;
+        }
+
+        .risk-bar.low {
+            background: #4caf50;
+        }
+
+        .risk-bar.caution {
+            background: #ff9800;
+        }
+
+        .risk-bar.high {
+            background: #f44336;
+        }
+
+        .risk-count {
+            font-weight: bold;
+            text-align: right;
+        }
+
+    </style>
+
+</head>
+
+<body>
+
+    <h1>QRShield Dashboard</h1>
+
+    <p class="subtitle">
+        Security analysis overview from recorded QR scans
+    </p>
+
+    <section class="stats">
+
+        <div class="stat">
+            <h3>Total Scans</h3>
+            <div class="stat-value">
+                {{ total_scans }}
+            </div>
+        </div>
+
+        <div class="stat">
+            <h3>Low Risk</h3>
+            <div class="stat-value">
+                {{ low_risk }}
+            </div>
+        </div>
+
+        <div class="stat">
+            <h3>Caution</h3>
+            <div class="stat-value">
+                {{ caution }}
+            </div>
+        </div>
+
+        <div class="stat">
+            <h3>High Risk</h3>
+            <div class="stat-value">
+                {{ high_risk }}
+            </div>
+        </div>
+
+    </section>
+
+    <section>
+
+        <h2>Average Risk Score</h2>
+
+        <p class="stat-value">
+            {{ average_score }}/100
+        </p>
+
+    </section>
+
+    <section>
+
+    <h2>Scan Statistics</h2>
+
+    <div class="stats">
+
+        <div class="stat">
+            <h3>Scans Today</h3>
+
+            <div class="stat-value">
+                {{ scans_today }}
+            </div>
+        </div>
+
+        <div class="stat">
+            <h3>Last 7 Days</h3>
+
+            <div class="stat-value">
+                {{ scans_last_7_days }}
+            </div>
+        </div>
+
+        <div class="stat">
+            <h3>Common Type</h3>
+
+            <div class="stat-value">
+                {{ most_common_content_type }}
+            </div>
+        </div>
+
+        <div class="stat">
+            <h3>Highest Score</h3>
+
+            <div class="stat-value">
+                {{ highest_score }}/100
+            </div>
+        </div>
+
+    </div>
+
+</section>
+
+        <section>
+
+        <h2>Risk Distribution</h2>
+
+        {% if total_scans > 0 %}
+
+            <div class="risk-chart">
+
+                <div class="risk-row">
+
+                    <div class="risk-label">
+                        LOW RISK
+                    </div>
+
+                    <div class="risk-bar-container">
+                        <div
+                            class="risk-bar low"
+                            style="width: {{ (low_risk / total_scans * 100) }}%;"
+                        ></div>
+                    </div>
+
+                    <div class="risk-count">
+                        {{ low_risk }}
+                    </div>
+
+                </div>
+
+
+                <div class="risk-row">
+
+                    <div class="risk-label">
+                        CAUTION
+                    </div>
+
+                    <div class="risk-bar-container">
+                        <div
+                            class="risk-bar caution"
+                            style="width: {{ (caution / total_scans * 100) }}%;"
+                        ></div>
+                    </div>
+
+                    <div class="risk-count">
+                        {{ caution }}
+                    </div>
+
+                </div>
+
+
+                <div class="risk-row">
+
+                    <div class="risk-label">
+                        HIGH RISK
+                    </div>
+
+                    <div class="risk-bar-container">
+                        <div
+                            class="risk-bar high"
+                            style="width: {{ (high_risk / total_scans * 100) }}%;"
+                        ></div>
+                    </div>
+
+                    <div class="risk-count">
+                        {{ high_risk }}
+                    </div>
+
+                </div>
+
+            </div>
+
+        {% else %}
+
+            <p>No risk distribution available yet.</p>
+
+        {% endif %}
+
+    </section>
+
+    <section>
+
+        <h2>Recent Scans</h2>
+
+        {% if history %}
+
+            {% for scan in history %}
+
+                <div class="history-item">
+
+                    <div class="history-content">
+                        {{ scan.content }}
+                    </div>
+
+                    <div class="history-meta">
+
+                        {{ scan.timestamp }}
+                        |
+                        {{ scan.content_type }}
+                        |
+                        {{ scan.risk }}
+                        |
+                        {{ scan.score }}/100
+
+                    </div>
+
+                </div>
+
+            {% endfor %}
+
+        {% else %}
+
+            <p>No scans recorded yet.</p>
+
+        {% endif %}
+
+    </section>
+
+</body>
+
+</html>

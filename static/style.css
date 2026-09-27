@@ -203,3 +203,14 @@ footer {
     flex-wrap: wrap;
     font-size: 0.9rem;
 }
+
+.dashboard-link {
+    text-align: right;
+    margin: 15px 0 25px 0;
+}
+
+.dashboard-link a {
+    text-decoration: none;
+    font-weight: bold;
+}
+

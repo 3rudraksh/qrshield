@@ -1,0 +1,16 @@
+[
+    {
+        "timestamp": "2026-09-27 09:45:50",
+        "content": "http://university-login-verify.xyz/urgent/account/password",
+        "content_type": "URL",
+        "risk": "HIGH RISK",
+        "score": 60
+    },
+    {
+        "timestamp": "2026-09-27 09:40:52",
+        "content": "http://university-login-verify.xyz/urgent/account/password",
+        "content_type": "URL",
+        "risk": "HIGH RISK",
+        "score": 60
+    }
+]
