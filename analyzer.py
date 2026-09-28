@@ -3132,6 +3132,7 @@ def build_security_report(result):
                 "correlation",
                 {}
             )
+            
         },
         "machine_learning": result.get("ml_analysis"),
         "machine_learning_consensus": result.get("ml_consensus"),
