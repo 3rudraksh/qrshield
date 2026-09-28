@@ -1,6 +1,5 @@
 from pyexpat import features
 import urllib.parse
-import pandas as pd
 from urllib.parse import urlparse, unquote, urljoin, urlsplit, parse_qs
 import ipaddress
 import math
@@ -11,178 +10,8 @@ from cryptography import x509
 import datetime
 import urllib.request
 import os
-import joblib
 import json
 
-ML_MODEL_PATH = os.path.join(
-    os.path.dirname(__file__),
-    "ml",
-    "qrshield_model.joblib"
-)
-
-
-def load_ml_model():
-
-    if not os.path.exists(ML_MODEL_PATH):
-        return None
-
-    try:
-        return joblib.load(
-            ML_MODEL_PATH
-        )
-    except Exception:
-        return None
-
-def extract_ml_features(result):
-
-    feature_map = {
-        feature.get("name"): feature.get("value")
-        for feature in result.get("features", [])
-        if isinstance(feature, dict)
-    }
-
-    return [[
-        feature_map.get("URL Length", 0),
-        feature_map.get("Hostname Length", 0),
-        feature_map.get("Subdomain Count", 0),
-        feature_map.get("Path Depth", 0),
-        feature_map.get("Query Parameters", 0),
-        feature_map.get(
-            "Percent Encoded Characters",
-            0
-        ),
-        feature_map.get("Hostname Hyphens", 0),
-        feature_map.get("Hostname Digits", 0),
-        feature_map.get("Hostname Entropy", 0)
-    ]]
-
-def analyze_ml_prediction(result):
-
-    model = load_ml_model()
-
-    if model is None:
-        return {
-            "status": "UNAVAILABLE",
-            "prediction": None,
-            "label": "UNKNOWN",
-            "confidence": None
-        }
-
-    try:
-
-        features = extract_ml_features(
-            result
-        )
-        feature_names = [
-            "URL Length",
-            "Hostname Length",
-            "Subdomain Count",
-            "Path Depth",
-            "Query Parameters",
-            "Percent Encoded Characters",
-            "Hostname Hyphens",
-            "Hostname Digits",
-            "Hostname Entropy"
-        ]
-
-        features = pd.DataFrame(
-            features,
-            columns=feature_names
-        )
-
-        prediction = int(
-            model.predict(features)[0]
-        )
-
-        probabilities = model.predict_proba(
-            features
-        )[0]
-
-        confidence = float(
-            max(probabilities)
-        )
-
-        label = (
-            "SUSPICIOUS"
-            if prediction == 1
-            else "LIKELY_SAFE"
-        )
-
-        return {
-            "status": "AVAILABLE",
-            "prediction": prediction,
-            "label": label,
-            "confidence": round(
-                confidence,
-                3
-            )
-        }
-
-    except Exception as error:
-
-        return {
-            "status": "ERROR",
-            "prediction": None,
-            "label": "UNKNOWN",
-            "confidence": None,
-            "error": str(error)
-        }
-
-def evaluate_ml_consensus(score, ml_analysis):
-    if not isinstance(ml_analysis, dict):
-        return {
-            "status": "UNAVAILABLE",
-            "agreement": "UNKNOWN",
-            "confidence": None,
-            "message": "Machine learning analysis is unavailable."
-        }
-
-    if ml_analysis.get("status") != "AVAILABLE":
-        return {
-            "status": ml_analysis.get("status", "UNAVAILABLE"),
-            "agreement": "UNKNOWN",
-            "confidence": ml_analysis.get("confidence"),
-            "message": "Machine learning analysis could not be used."
-        }
-
-    prediction = ml_analysis.get("prediction")
-    confidence = ml_analysis.get("confidence")
-
-    if prediction not in (0, 1):
-        return {
-            "status": "AVAILABLE",
-            "agreement": "UNKNOWN",
-            "confidence": confidence,
-            "message": "Machine learning prediction is unavailable."
-        }
-
-    if score <= 20:
-        heuristic_label = "LIKELY_SAFE"
-    else:
-        heuristic_label = "SUSPICIOUS"
-
-    ml_label = "SUSPICIOUS" if prediction == 1 else "LIKELY_SAFE"
-
-    if heuristic_label == ml_label:
-        agreement = "AGREE_SAFE" if prediction == 0 else "AGREE_SUSPICIOUS"
-        message = (
-            "Machine learning and heuristic analysis agree."
-        )
-    else:
-        agreement = "ML_DISAGREEMENT"
-        message = (
-            "Machine learning and heuristic analysis disagree. "
-            "The existing heuristic risk assessment remains authoritative."
-        )
-
-    return {
-        "status": "AVAILABLE",
-        "agreement": agreement,
-        "heuristic_label": heuristic_label,
-        "ml_label": ml_label,
-        "confidence": confidence,
-        "message": message
-    }
 
 SUSPICIOUS_KEYWORDS = [
     "login",
@@ -3133,8 +2962,6 @@ def build_security_report(result):
                 {}
             )
         },
-        "machine_learning": result.get("ml_analysis"),
-        "machine_learning_consensus": result.get("ml_consensus"),
         "technical_analysis": features,
         "summary": result.get(
             "overall_explanation"
@@ -4089,15 +3916,6 @@ def analyze_url(url):
         }
     })
 
-    ml_analysis = analyze_ml_prediction({
-        "features": features
-    })
-
-    ml_consensus = evaluate_ml_consensus(
-        score,
-        ml_analysis
-    )
-    
     if obfuscation_analysis["count"] >= 4:
         score += 10
 
@@ -4200,8 +4018,6 @@ def analyze_url(url):
         "risk_evidence_explanation": risk_evidence_explanation,
         "findings": findings,
         "features": features,
-        "ml_analysis": ml_analysis,
-        "ml_consensus": ml_consensus,
         "security_report": build_security_report({
             "url": url,
             "content_type": content_type,

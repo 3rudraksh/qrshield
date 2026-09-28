@@ -1,5 +1,47 @@
 [
     {
+        "timestamp": "2026-09-28 14:10:06",
+        "content": "http://192.168.1.10/login",
+        "content_type": "URL",
+        "risk": "CAUTION",
+        "score": 45
+    },
+    {
+        "timestamp": "2026-09-27 10:01:35",
+        "content": "http://kmclu-account-verify.example/urgent/login/password",
+        "content_type": "URL",
+        "risk": "CAUTION",
+        "score": 45
+    },
+    {
+        "timestamp": "2026-09-27 10:01:17",
+        "content": "https://example.com/campus-registration",
+        "content_type": "URL",
+        "risk": "LOW RISK",
+        "score": 0
+    },
+    {
+        "timestamp": "2026-09-27 10:00:40",
+        "content": "https://wikipedia.com",
+        "content_type": "URL",
+        "risk": "LOW RISK",
+        "score": 10
+    },
+    {
+        "timestamp": "2026-09-27 10:00:39",
+        "content": "https://wikipedia.com",
+        "content_type": "URL",
+        "risk": "LOW RISK",
+        "score": 10
+    },
+    {
+        "timestamp": "2026-09-27 10:00:17",
+        "content": "https://example.com",
+        "content_type": "URL",
+        "risk": "LOW RISK",
+        "score": 0
+    },
+    {
         "timestamp": "2026-09-27 09:45:50",
         "content": "http://university-login-verify.xyz/urgent/account/password",
         "content_type": "URL",
