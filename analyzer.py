@@ -3194,11 +3194,10 @@ def generate_ai_explanation(ai_context):
             "explanation": response.text
         }
 
-    except Exception as error:
+    except Exception:
         return {
-            "status": "error",
-            "explanation": "AI explanation generation failed.",
-            "error": str(error)
+            "status": "UNAVAILABLE",
+            "explanation": "AI explanation generation failed."
         }
     
 def generate_user_guidance(result):
