@@ -3096,6 +3096,51 @@ def analyze_message_qr(content, content_type):
 
 # ------------------
 # ------------------
+def build_ai_context(result):
+    if not isinstance(result, dict):
+        return {
+            "status": "INVALID",
+            "context": {}
+        }
+
+    risk_analysis = result.get("risk_analysis", {})
+    features = result.get("features", [])
+    ml_analysis = result.get("ml_analysis", {})
+    ml_consensus = result.get("ml_consensus", {})
+
+    return {
+        "status": "READY",
+        "content": {
+            "decoded_content": result.get("url"),
+            "content_type": result.get("content_type"),
+            "embedded_urls": result.get("embedded_urls", [])
+        },
+        "assessment": {
+            "score": result.get("score"),
+            "risk": result.get("risk"),
+            "risk_basis": risk_analysis.get("risk_basis"),
+            "confidence": risk_analysis.get("confidence")
+        },
+        "security_evidence": {
+            "findings": result.get("findings", []),
+            "explanations": result.get("explanations", []),
+            "risk_evidence": result.get(
+                "risk_evidence_explanation"
+            ),
+            "correlation": risk_analysis.get(
+                "correlation", {}
+            )
+        },
+        "technical_analysis": features,
+        "machine_learning": {
+            "prediction": ml_analysis.get("prediction"),
+            "label": ml_analysis.get("label"),
+            "confidence": ml_analysis.get("confidence"),
+            "consensus": ml_consensus.get("agreement"),
+            "message": ml_consensus.get("message")
+        }
+    }
+
 def build_security_report(result):
     """
     Build a structured security report from a QRShield analysis result.
@@ -4185,8 +4230,9 @@ def analyze_url(url):
     # --------------------------------------------------
     # FINAL RESULT
     # --------------------------------------------------
+  
 
-    return {
+    result = {
         "url": normalized_url,
         "content_type": content_type,
         "wifi_analysis": wifi_analysis,
@@ -4216,3 +4262,6 @@ def analyze_url(url):
             "features": features
         })
     }
+    result["ai_context"] = build_ai_context(result)
+
+    return result
