@@ -3,3 +3,4 @@ __pycache__/
 *.pyc
 uploads/*
 analyzer_stage1_backup.py
+.env
