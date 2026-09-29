@@ -1,6 +1,6 @@
 from pyexpat import features
 from unittest import result
-from openai import OpenAI
+from google import genai
 import urllib.parse
 import pandas as pd
 from urllib.parse import urlparse, unquote, urljoin, urlsplit, parse_qs
@@ -3156,44 +3156,125 @@ def generate_ai_explanation(ai_context):
             "explanation": "AI explanation cannot be generated."
         }
 
-    if not os.getenv("OPENAI_API_KEY"):
-        return {
-            "status": "UNAVAILABLE",
-            "explanation": "AI explanation is unavailable."
-        }
+    api_key = os.getenv("GEMINI_API_KEY")
 
-    try:
-        client = OpenAI()
-
-        response = client.responses.create(
-            model="gpt-5-mini",
-            instructions=(
-                "You are the explanation layer for QRShield. "
-                "Explain only the security evidence provided. "
-                "Do not invent facts. "
-                "Do not change the QRShield risk score. "
-                "Clearly distinguish detected evidence from inference."
-            ),
-            input=(
-                "Explain this QRShield analysis:\n\n"
-                + json.dumps(
-                    ai_context,
-                    indent=2,
-                    ensure_ascii=False
-                )
-            )
-        )
-
-        return {
-            "status": "AVAILABLE",
-            "explanation": response.output_text
-        }
-
-    except Exception:
+    if not api_key:
         return {
             "status": "UNAVAILABLE",
             "explanation": "AI explanation is currently unavailable."
         }
+
+    try:
+        client = genai.Client(api_key=api_key)
+
+        prompt = (
+            "You are the security explanation layer for QRShield, "
+            "a defensive QR security analysis tool.\n\n"
+            "Explain the QRShield analysis using ONLY the evidence "
+            "provided below.\n"
+            "Do not invent facts.\n"
+            "Do not change or override the QRShield risk score.\n"
+            "Clearly distinguish detected evidence from inference.\n"
+            "Give a concise explanation understandable to a user.\n\n"
+            "QRShield evidence:\n"
+            + json.dumps(
+                ai_context,
+                indent=2,
+                ensure_ascii=False
+            )
+        )
+
+        response = client.models.generate_content(
+            model="gemini-3.1-flash-lite",
+            contents=prompt
+        )
+
+        return {
+            "status": "AVAILABLE",
+            "explanation": response.text
+        }
+
+    except Exception as error:
+        return {
+            "status": "error",
+            "explanation": "AI explanation generation failed.",
+            "error": str(error)
+        }
+    
+def generate_user_guidance(result):
+    if not isinstance(result, dict):
+        return {
+            "status": "INVALID",
+            "guidance": "Unable to generate security guidance."
+        }
+
+    risk = result.get("risk", "UNKNOWN")
+    score = result.get("score", 0)
+    findings = result.get("findings", [])
+
+    if risk == "HIGH RISK":
+        guidance = (
+            "Do not open or interact with this QR destination. "
+            "Review the detected security findings and verify the "
+            "destination through a trusted source before proceeding."
+        )
+    elif risk == "CAUTION":
+        guidance = (
+            "Proceed carefully. Review the detected security findings "
+            "and verify the destination independently before entering "
+            "credentials or sensitive information."
+        )
+    else:
+        guidance = (
+            "No significant security indicators were detected by "
+            "QRShield. Continue to verify that the QR code comes from "
+            "a trusted source before interacting with it."
+        )
+
+    return {
+        "status": "AVAILABLE",
+        "risk": risk,
+        "score": score,
+        "finding_count": len(findings),
+        "guidance": guidance
+    }
+
+def validate_ai_output(ai_explanation, result):
+    if not isinstance(ai_explanation, dict):
+        return {
+            "status": "INVALID",
+            "safe": False,
+            "reason": "AI explanation has an invalid structure."
+        }
+
+    if not isinstance(result, dict):
+        return {
+            "status": "INVALID",
+            "safe": False,
+            "reason": "QRShield analysis result is invalid."
+        }
+
+    if ai_explanation.get("status") != "AVAILABLE":
+        return {
+            "status": "NOT_AVAILABLE",
+            "safe": True,
+            "reason": "AI explanation is unavailable."
+        }
+
+    explanation = ai_explanation.get("explanation")
+
+    if not isinstance(explanation, str) or not explanation.strip():
+        return {
+            "status": "INVALID",
+            "safe": False,
+            "reason": "AI returned an empty explanation."
+        }
+
+    return {
+        "status": "VALID",
+        "safe": True,
+        "reason": "AI explanation passed structural validation."
+    }
 
 def build_security_report(result):
     """
@@ -4321,5 +4402,10 @@ def analyze_url(url):
     result["ai_explanation"] = generate_ai_explanation(
         result["ai_context"]
     )
+    result["ai_validation"] = validate_ai_output(
+    result["ai_explanation"],
+    result
+    )
+    result["user_guidance"] = generate_user_guidance(result)
 
     return result
