@@ -1,4 +1,6 @@
 from pyexpat import features
+from unittest import result
+from openai import OpenAI
 import urllib.parse
 import pandas as pd
 from urllib.parse import urlparse, unquote, urljoin, urlsplit, parse_qs
@@ -3141,6 +3143,58 @@ def build_ai_context(result):
         }
     }
 
+def generate_ai_explanation(ai_context):
+    if not isinstance(ai_context, dict):
+        return {
+            "status": "INVALID",
+            "explanation": "AI context is unavailable."
+        }
+
+    if ai_context.get("status") != "READY":
+        return {
+            "status": "UNAVAILABLE",
+            "explanation": "AI explanation cannot be generated."
+        }
+
+    if not os.getenv("OPENAI_API_KEY"):
+        return {
+            "status": "UNAVAILABLE",
+            "explanation": "AI explanation is unavailable."
+        }
+
+    try:
+        client = OpenAI()
+
+        response = client.responses.create(
+            model="gpt-5-mini",
+            instructions=(
+                "You are the explanation layer for QRShield. "
+                "Explain only the security evidence provided. "
+                "Do not invent facts. "
+                "Do not change the QRShield risk score. "
+                "Clearly distinguish detected evidence from inference."
+            ),
+            input=(
+                "Explain this QRShield analysis:\n\n"
+                + json.dumps(
+                    ai_context,
+                    indent=2,
+                    ensure_ascii=False
+                )
+            )
+        )
+
+        return {
+            "status": "AVAILABLE",
+            "explanation": response.output_text
+        }
+
+    except Exception:
+        return {
+            "status": "UNAVAILABLE",
+            "explanation": "AI explanation is currently unavailable."
+        }
+
 def build_security_report(result):
     """
     Build a structured security report from a QRShield analysis result.
@@ -4263,5 +4317,9 @@ def analyze_url(url):
         })
     }
     result["ai_context"] = build_ai_context(result)
+
+    result["ai_explanation"] = generate_ai_explanation(
+        result["ai_context"]
+    )
 
     return result
